@@ -27,8 +27,24 @@ trap 'rm -rf "$STAGE"' EXIT
 cp -a "$PKGROOT/." "$STAGE/"
 mkdir -p "$STAGE/DEBIAN"
 
-# Shared-library dependencies come from what the dynamic linker actually loads, mapped to
-# the owning packages — not from a hand-kept list that rots when Qt moves.
+# Shared-library dependencies: the libraries the binary itself links (its ELF NEEDED
+# entries), mapped to the packages that own them — not a hand-kept list that rots when Qt
+# moves.
+#
+# Only the DIRECT ones. `ldd` also lists everything those libraries pull in (Qt's libicu70,
+# libdouble-conversion3, ...), and those names are specific to the release we build on:
+# Ubuntu 24.04 has libicu74, not libicu70, so a package that names libicu70 can never be
+# installed there. The Qt packages declare their own dependencies; we only name Qt.
+BIN="$STAGE/usr/bin/agentaura"
+declare -A DIRECT=()
+while read -r soname; do
+    DIRECT["$soname"]=1
+done < <(objdump -p "$BIN" | awk '/^ *NEEDED/ {print $2}')
+if [ ${#DIRECT[@]} -eq 0 ]; then
+    echo "objdump found no NEEDED entries in $BIN" >&2
+    exit 1
+fi
+
 declare -a PKGS=()
 while read -r lib; do
     [ -n "$lib" ] || continue
@@ -45,7 +61,9 @@ while read -r lib; do
     else
         echo "note: no package owns $lib; not adding a dependency for it" >&2
     fi
-done < <(ldd "$STAGE/usr/bin/agentaura" | awk '/=>/ && $3 ~ /^\// {print $3}')
+done < <(ldd "$BIN" | awk '/=>/ && $3 ~ /^\// {print $1, $3}' | while read -r name path; do
+    [ -n "${DIRECT[$name]:-}" ] && echo "$path"
+done)
 
 if [ ${#PKGS[@]} -eq 0 ]; then
     echo "Could not resolve any library dependencies for usr/bin/agentaura" >&2
