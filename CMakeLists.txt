@@ -65,7 +65,7 @@ target_link_libraries(AgentAura PRIVATE Qt6::Widgets Qt6::Network)
 # ships with. A fork that runs its own backend overrides them at configure time:
 #   cmake -B build -DAGENTAURA_API_BASE_URL=https://api.example.com \
 #                  -DAGENTAURA_FIREBASE_API_KEY=<your Firebase Web API key>
-set(AGENTAURA_API_BASE_URL "https://d1em8r2hdbckr6.cloudfront.net"
+set(AGENTAURA_API_BASE_URL "https://awsapi.allianceinterstellar.com"
     CACHE STRING "Base URL of the AgentAura (ClawHost) API")
 # A Firebase Web API key identifies a Firebase project; it is public by design and is not a
 # secret. What it can do is governed by Firebase Auth and security rules.
