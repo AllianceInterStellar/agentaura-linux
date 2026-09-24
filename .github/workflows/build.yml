@@ -1,0 +1,90 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Nothing that identifies a person, a machine or a live credential belongs in this tree.
+  # The patterns are the shapes that actually leaked from sibling projects before they were
+  # published (see README "Security").
+  secrets-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Credential-shape gate
+        run: bash scripts/secret-gate.sh
+
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        # 22.04 ships Qt 6.2 (the floor); 24.04 ships 6.4. Both must build and start.
+        runner: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.runner }}
+    name: build (${{ matrix.runner }})
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build qt6-base-dev libgl1-mesa-dev
+
+      - name: Build
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+          file build/agentaura
+
+      - name: Version and TLS self-test
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          ./build/agentaura --version
+          ./build/agentaura --self-test
+
+      # With no stored session the app opens its sign-in dialog and waits there, so a
+      # healthy start is a process that is still alive when `timeout` kills it (exit 124).
+      # Any other exit code — a crash, an early return, a missing plugin — fails the job.
+      # Judging by exit code, not by grepping the log: a sibling project once printed
+      # "no errors" over a log whose real failure message matched none of its patterns.
+      - name: Start-up smoke test
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          set +e
+          timeout 10 ./build/agentaura > smoke.log 2>&1
+          code=$?
+          set -e
+          cat smoke.log
+          if [ "$code" -ne 124 ]; then
+            echo "::error::agentaura exited with $code before the timeout; expected it to be waiting at sign-in"
+            exit 1
+          fi
+          echo "Still running after 10s, as expected."
+
+  # The package is only as good as its dependency list. Building it on a machine that has
+  # every -dev package installed proves nothing about that list, so install the .deb on a
+  # clean image and run it there — against the real X11 platform plugin, not offscreen.
+  package-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the package
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build dpkg-dev qt6-base-dev libgl1-mesa-dev
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+          DESTDIR="$PWD/pkgroot" cmake --install build --prefix /usr
+          bash packaging/build-deb.sh "$PWD/pkgroot" dist
+      - name: Install and run on clean images
+        run: bash scripts/package-test.sh dist/*.deb ubuntu:22.04 ubuntu:24.04

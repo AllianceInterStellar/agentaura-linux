@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.allianceinterstellar.AgentAura</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>AgentAura</name>
+  <summary>Deploy and chat with your private AI agents</summary>
+  <description>
+    <p>
+      AgentAura is the desktop client for AgentAura: install a private AI agent on a Linux
+      server you control, then manage it and chat with it from your desktop.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.allianceinterstellar.AgentAura.desktop</launchable>
+  <url type="homepage">https://allianceinterstellar.com/en/agentaura</url>
+  <url type="bugtracker">https://github.com/AllianceInterStellar/agentaura-linux/issues</url>
+  <developer id="com.allianceinterstellar">
+    <name>AllianceInterStellar</name>
+  </developer>
+  <content_rating type="oars-1.1"/>
+</component>

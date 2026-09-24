@@ -1,0 +1,128 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish (must match the version in CMakeLists.txt)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        # Built on the oldest release we support so the packages install on 22.04 and newer.
+        # Native runners for both architectures.
+        include:
+          - { runner: ubuntu-22.04,     arch: amd64 }
+          - { runner: ubuntu-22.04-arm, arch: arm64 }
+    runs-on: ${{ matrix.runner }}
+    name: ${{ matrix.arch }}
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # A tag that disagrees with the source would publish files named one version that
+      # report another from --version.
+      - name: Tag matches the source version
+        run: |
+          VERSION="$(sed -n 's/^project(AgentAura VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          echo "source version $VERSION, tag $TAG"
+          [ "v$VERSION" = "$TAG" ] || { echo "::error::tag $TAG does not match v$VERSION"; exit 1; }
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build dpkg-dev qt6-base-dev libgl1-mesa-dev
+
+      - name: Build
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+          file build/agentaura
+          QT_QPA_PLATFORM=offscreen ./build/agentaura --self-test
+
+      - name: Stage
+        run: |
+          DESTDIR="$PWD/pkgroot" cmake --install build --prefix /usr
+          find pkgroot -type f | sort
+
+      - name: Package .deb
+        run: bash packaging/build-deb.sh "$PWD/pkgroot" dist
+
+      # Install the package we are about to publish on clean images and run it there.
+      - name: Test the package on clean images
+        run: bash scripts/package-test.sh dist/agentaura_${VERSION}_${{ matrix.arch }}.deb ubuntu:22.04 ubuntu:24.04
+
+      - name: Portable tarball
+        run: |
+          # For distributions whose package names differ from Debian's: the same binary,
+          # without dependency metadata. It needs Qt 6.2+ (Widgets, Network) and OpenSSL 3.
+          DIR="agentaura-${VERSION}-linux-${{ matrix.arch }}"
+          mkdir -p "dist/$DIR/icons"
+          cp -a pkgroot/usr/bin/agentaura "dist/$DIR/"
+          cp -a packaging/io.allianceinterstellar.AgentAura.desktop "dist/$DIR/"
+          cp -a packaging/icons/hicolor "dist/$DIR/icons/"
+          cp -a README.md LICENSE NOTICE.md "dist/$DIR/"
+          tar -C dist -czf "dist/$DIR.tar.gz" "$DIR"
+          rm -rf "dist/$DIR"
+          ls -l dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect
+        run: |
+          mkdir -p dist
+          find artifacts -type f \( -name '*.deb' -o -name '*.tar.gz' \) -exec cp {} dist/ \;
+          cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          cat > notes.md <<'NOTES'
+          AgentAura desktop client for Linux, x86-64 and arm64.
+
+          **Ubuntu / Debian:** download the `.deb` for your architecture and install it with
+          `sudo apt install ./agentaura_*.deb` — apt pulls in Qt and OpenSSL. Built on
+          Ubuntu 22.04; installs on 22.04 and newer.
+
+          **Other distributions:** the `.tar.gz` holds the same binary without dependency
+          metadata. It needs Qt 6.2 or newer (Widgets, Network) and OpenSSL 3. Run
+          `./agentaura --self-test` to check that TLS works on your system.
+
+          `SHA256SUMS` lists the checksums of every file in this release.
+          NOTES
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file notes.md
+            gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" dist/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "AgentAura for Linux $TAG" \
+              --notes-file notes.md
+          fi

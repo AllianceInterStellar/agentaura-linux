@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=AgentAura
+GenericName=AI Agent Manager
+Comment=Deploy and chat with your private AI agents
+Exec=agentaura
+Icon=io.allianceinterstellar.AgentAura
+Terminal=false
+Categories=Network;Development;
+Keywords=AI;Agent;Claude;Codex;Chat;Server;
+StartupNotify=true
+StartupWMClass=agentaura

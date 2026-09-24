@@ -1,0 +1,6 @@
+build/
+build-*/
+dist/
+pkgroot/
+*.user
+.DS_Store
