@@ -1,7 +1,6 @@
 #pragma once
 
 #include "models/AppUser.h"
-#include "models/Subscription.h"
 #include "services/ApiClient.h"
 #include "services/FirebaseAuth.h"
 
@@ -25,8 +24,6 @@ public:
 
     bool isLoggedIn() const { return m_loggedIn; }
     const AppUser &user() const { return m_user; }
-    const UserSubscription &subscription() const { return m_subscription; }
-    void setSubscription(const UserSubscription &sub) { m_subscription = sub; }
 
     /// Installed by MainWindow: the session ended for a reason the app cannot undo (the refresh
     /// token was revoked or expired), so the user has to be asked to sign in again. AuthState
@@ -52,7 +49,6 @@ public:
 
     void logout() {
         m_user = {};
-        m_subscription = {};
         m_loggedIn = false;
         m_refreshToken.clear();
         m_expiresAtMs = 0;
@@ -197,7 +193,6 @@ private:
 
     bool m_loggedIn = false;
     AppUser m_user;
-    UserSubscription m_subscription;
     QString m_refreshToken;
     qint64 m_expiresAtMs = 0;
 

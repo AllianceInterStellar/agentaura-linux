@@ -12,8 +12,8 @@ class DeployScreen : public QWidget {
 public:
     explicit DeployScreen(QWidget *parent = nullptr);
 
-    /// Load the plans and regions for the selected provider. Called once a session exists — the
-    /// screen is built before sign-in, when those fetches would only 401.
+    /// Load the server sizes and regions for the selected provider. Called once a session
+    /// exists — the screen is built before sign-in, when those fetches would only 401.
     void reload();
 
 signals:
@@ -25,6 +25,8 @@ private:
     void onProviderChanged(int index);
     void onDeploy();
     void showLoadError(const QString &what, const QString &err);
+    /// The server refused a second agent: open allianceinterstellar.com and say why.
+    void showAgentLimit();
 
     QComboBox *m_providerCombo = nullptr;
     QComboBox *m_planCombo = nullptr;

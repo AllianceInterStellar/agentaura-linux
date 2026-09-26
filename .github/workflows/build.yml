@@ -43,6 +43,9 @@ jobs:
           cmake --build build --parallel
           file build/agentaura
 
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure
+
       - name: Version and TLS self-test
         env:
           QT_QPA_PLATFORM: offscreen

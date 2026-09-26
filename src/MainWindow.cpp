@@ -53,7 +53,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     sideLayout->addWidget(accountBtn);
     sideLayout->addStretch();
 
-    auto *version = new QLabel("v1.0.0", sidebar);
+    auto *version = new QLabel("v" + QApplication::applicationVersion(), sidebar);
     version->setStyleSheet("font-size: 10px; color: #48484A; background: transparent; border: none; padding: 0 8px;");
     sideLayout->addWidget(version);
 

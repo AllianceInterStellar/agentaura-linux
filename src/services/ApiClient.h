@@ -8,7 +8,6 @@
 #include <QJsonArray>
 #include <functional>
 #include "models/Claw.h"
-#include "models/Subscription.h"
 #include "models/ApiModels.h"
 
 class ApiClient : public QObject {
@@ -45,19 +44,16 @@ public:
 
     /// `location` and `appTypes` are the server's field names; sending `region` (as this client
     /// used to) means the request is missing a required field and is refused before anything is
-    /// provisioned.
+    /// provisioned. `onAgentLimit` is called instead of `onError` when the server refuses because
+    /// the account already runs its one agent (see AgentLimit.h).
     void createClaw(const QString &name, const QString &provider, const QString &planId,
                     const QString &location, const QString &deployMethod,
                     const QString &appType, const AiModelConfig &aiModelConfig,
-                    std::function<void(Claw)> onSuccess, std::function<void(QString)> onError);
+                    std::function<void(Claw)> onSuccess, std::function<void(QString)> onError,
+                    std::function<void()> onAgentLimit);
     void deleteClaw(const QString &id, std::function<void()> onSuccess, std::function<void(QString)> onError);
     void startClaw(const QString &id, std::function<void()> onSuccess, std::function<void(QString)> onError);
     void stopClaw(const QString &id, std::function<void()> onSuccess, std::function<void(QString)> onError);
-
-    /// GET /subscriptions/status — the server is the only source of truth for entitlement
-    /// (store purchases on mobile and Stripe on the web both land there).
-    void fetchSubscription(std::function<void(UserSubscription)> onSuccess,
-                           std::function<void(QString)> onError);
 
     void fetchPlans(const QString &provider, std::function<void(QList<PlanInfo>)> onSuccess, std::function<void(QString)> onError);
     void fetchRegions(const QString &provider, std::function<void(QList<RegionInfo>)> onSuccess, std::function<void(QString)> onError);
@@ -81,6 +77,11 @@ private:
     void send(const QString &method, const QString &path, const QByteArray &body,
               std::function<void(QByteArray)> onOk, std::function<void(QString)> onErr,
               bool allowRetry = true);
+    /// send(), with the HTTP status of a failure alongside its message (0 when no response
+    /// arrived at all) — for the call that has to tell one refusal apart from the others.
+    void sendWithStatus(const QString &method, const QString &path, const QByteArray &body,
+                        std::function<void(QByteArray)> onOk,
+                        std::function<void(int, QString)> onErr, bool allowRetry = true);
 
     QNetworkAccessManager m_nam;
     QString m_authToken;

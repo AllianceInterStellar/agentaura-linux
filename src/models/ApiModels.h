@@ -3,20 +3,20 @@
 #include <QList>
 #include <QJsonObject>
 
+/// One server size the provider offers (GET /plans). The server is created in the user's own
+/// cloud account, so this is the machine's shape, nothing more.
 struct PlanInfo {
     QString id;
     QString name;
     int cpu = 0;
     int memory = 0;
     int storage = 0;
-    double price = 0;
 
-    /// GET /plans names these `disk` and `priceMonthly`. Reading `storage`/`price` returned 0 for
-    /// both, so every plan in the picker read "0GB • $0".
+    /// GET /plans names the disk size `disk`. Reading `storage` returned 0, so every size in the
+    /// picker read "0GB".
     static PlanInfo fromJson(const QJsonObject &obj) {
         return {obj["id"].toString(), obj["name"].toString(),
-                obj["cpu"].toInt(), obj["memory"].toInt(), obj["disk"].toInt(),
-                obj["priceMonthly"].toDouble()};
+                obj["cpu"].toInt(), obj["memory"].toInt(), obj["disk"].toInt()};
     }
 };
 

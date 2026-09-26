@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(AgentAura VERSION 1.0.0 LANGUAGES CXX)
+project(AgentAura VERSION 1.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -7,16 +7,16 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
 # 6.2 is the floor: Ubuntu 22.04 LTS ships Qt 6.2 and the release packages are built there.
-find_package(Qt6 6.2 REQUIRED COMPONENTS Widgets Network)
+find_package(Qt6 6.2 REQUIRED COMPONENTS Core Widgets Network)
 
 set(SOURCES
     src/main.cpp
     src/theme/AppColors.h
     src/models/Claw.h
     src/models/AppUser.h
-    src/models/Subscription.h
     src/models/ProvisionProgress.h
     src/models/ApiModels.h
+    src/services/AgentLimit.h
     src/services/ApiClient.h
     src/services/ApiClient.cpp
     src/services/AuthState.h
@@ -28,8 +28,6 @@ set(SOURCES
     src/services/FirebaseAuth.cpp
     src/widgets/StatusBadge.h
     src/widgets/StatusBadge.cpp
-    src/widgets/SubscriptionBadge.h
-    src/widgets/SubscriptionBadge.cpp
     src/widgets/ClawCard.h
     src/widgets/ClawCard.cpp
     src/screens/ChatScreen.h
@@ -83,6 +81,20 @@ set_target_properties(AgentAura PROPERTIES
     MACOSX_BUNDLE TRUE
     WIN32_EXECUTABLE TRUE
 )
+
+# ── Unit tests ──────────────────────────────────────────────────────────────────────
+# Logic that needs no window and no network, checked with plain executables against Qt Core
+# (no QtTest, so nothing beyond qt6-base-dev is required). Run with
+#   ctest --test-dir build --output-on-failure
+# They are not installed and do not end up in the packages.
+option(AGENTAURA_BUILD_TESTS "Build the unit tests" ON)
+if(AGENTAURA_BUILD_TESTS)
+    enable_testing()
+    add_executable(agent_limit_test tests/agent_limit_test.cpp)
+    target_include_directories(agent_limit_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(agent_limit_test PRIVATE Qt6::Core)
+    add_test(NAME agent_limit COMMAND agent_limit_test)
+endif()
 
 # ── Linux installation ──────────────────────────────────────────────────────────────
 # The layout a desktop expects: the binary on PATH, a .desktop entry that names the

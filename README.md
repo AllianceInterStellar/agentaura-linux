@@ -47,11 +47,13 @@ agentaura --self-test
 - **Sign in** with an email one-time code (no password), the same account as the web, iOS
   and Android apps.
 - **Deploy** an agent to a server: pick the engine (Claude Code or Codex), the provider,
-  plan and region.
+  server size and region. This version runs one agent per account; when you ask for another,
+  it opens [allianceinterstellar.com](https://allianceinterstellar.com/pricing#agentaura-plans)
+  in your browser, where you can continue.
 - **Agents** — see every agent you own, its status while it provisions, restarts or
   migrates, and act on it.
 - **Chat** with an agent. Replies stream from the agent's gateway over a WebSocket.
-- **Account** — plan and subscription status.
+- **Account** — who is signed in, help and legal links, and sign-out.
 
 ## Build from source
 
@@ -99,6 +101,7 @@ src/
   services/           ApiClient (REST), FirebaseAuth, ChatService,
                       WebSocketClient (RFC 6455 over QSslSocket, no QtWebSockets)
   models/  widgets/  theme/
+tests/                unit tests (plain executables, run by ctest)
 packaging/            .desktop entry, AppStream metadata, icons, build-deb.sh
 scripts/              package-test.sh (clean-image install test), secret-gate.sh
 .github/workflows/    build (every push) and release (on a v* tag)
@@ -106,9 +109,9 @@ scripts/              package-test.sh (clean-image install test), secret-gate.sh
 
 ## Continuous integration
 
-Every push builds on Ubuntu 22.04 (Qt 6.2) and 24.04 (Qt 6.4), runs `--self-test`, and
-starts the app headless — a healthy start is a process still waiting at the sign-in dialog
-when the test stops it. The package test builds the `.deb`, installs it on clean
+Every push builds on Ubuntu 22.04 (Qt 6.2) and 24.04 (Qt 6.4), runs the unit tests and
+`--self-test`, and starts the app headless — a healthy start is a process still waiting at the
+sign-in dialog when the test stops it. The package test builds the `.deb`, installs it on clean
 `ubuntu:22.04` and `ubuntu:24.04` images, and runs it under a real X11 display; that is what
 proves the package's dependency list is complete. A credential-shape gate rejects anything
 that looks like a token, a private key, a personal e-mail address or a developer's home

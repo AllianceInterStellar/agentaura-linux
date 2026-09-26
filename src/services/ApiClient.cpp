@@ -1,4 +1,5 @@
 #include "services/ApiClient.h"
+#include "services/AgentLimit.h"
 #include <QNetworkRequest>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -55,6 +56,13 @@ static QString envelopeError(const QByteArray &raw, const QString &fallback) {
 void ApiClient::send(const QString &method, const QString &path, const QByteArray &body,
                      std::function<void(QByteArray)> onOk, std::function<void(QString)> onErr,
                      bool allowRetry) {
+    sendWithStatus(method, path, body, std::move(onOk),
+                   [onErr](int, const QString &message) { onErr(message); }, allowRetry);
+}
+
+void ApiClient::sendWithStatus(const QString &method, const QString &path, const QByteArray &body,
+                               std::function<void(QByteArray)> onOk,
+                               std::function<void(int, QString)> onErr, bool allowRetry) {
     auto *reply = request(method, path, body);
     connect(reply, &QNetworkReply::finished, this,
             [this, reply, method, path, body, onOk, onErr, allowRetry]() {
@@ -68,16 +76,16 @@ void ApiClient::send(const QString &method, const QString &path, const QByteArra
         if (status == 401 && allowRetry && m_tokenRefresher) {
             // The Firebase idToken only lives about an hour. Re-mint it and replay once, so a
             // long-running window keeps working instead of failing every call from then on.
-            m_tokenRefresher([this, method, path, body, onOk, onErr, raw](bool refreshed) {
+            m_tokenRefresher([this, method, path, body, onOk, onErr, raw, status](bool refreshed) {
                 if (!refreshed) {
-                    onErr(envelopeError(raw, "Session expired — please sign in again."));
+                    onErr(status, envelopeError(raw, "Session expired — please sign in again."));
                     return;
                 }
-                send(method, path, body, onOk, onErr, /*allowRetry=*/false);
+                sendWithStatus(method, path, body, onOk, onErr, /*allowRetry=*/false);
             });
             return;
         }
-        onErr(envelopeError(raw, reply->errorString()));
+        onErr(status, envelopeError(raw, reply->errorString()));
     });
 }
 
@@ -124,7 +132,8 @@ void ApiClient::fetchClaws(std::function<void(QList<Claw>)> onSuccess, std::func
 void ApiClient::createClaw(const QString &name, const QString &provider, const QString &planId,
                            const QString &location, const QString &deployMethod,
                            const QString &appType, const AiModelConfig &aiModelConfig,
-                           std::function<void(Claw)> onSuccess, std::function<void(QString)> onError) {
+                           std::function<void(Claw)> onSuccess, std::function<void(QString)> onError,
+                           std::function<void()> onAgentLimit) {
     QJsonObject body;
     body["name"] = name;
     body["provider"] = provider;
@@ -140,11 +149,14 @@ void ApiClient::createClaw(const QString &name, const QString &provider, const Q
             {"envVarName", aiModelConfig.envVarName}
         };
     }
-    send("POST", "/claws", QJsonDocument(body).toJson(QJsonDocument::Compact),
-         [onSuccess](const QByteArray &raw) {
-             onSuccess(Claw::fromJson(QJsonDocument::fromJson(raw).object()["data"].toObject()));
-         },
-         onError);
+    sendWithStatus("POST", "/claws", QJsonDocument(body).toJson(QJsonDocument::Compact),
+                   [onSuccess](const QByteArray &raw) {
+                       onSuccess(Claw::fromJson(QJsonDocument::fromJson(raw).object()["data"].toObject()));
+                   },
+                   [onError, onAgentLimit](int status, const QString &message) {
+                       if (AgentLimit::isOneAgentLimitRefusal(status, message)) onAgentLimit();
+                       else onError(message);
+                   });
 }
 
 void ApiClient::deleteClaw(const QString &id, std::function<void()> onSuccess, std::function<void(QString)> onError) {
@@ -157,30 +169,6 @@ void ApiClient::startClaw(const QString &id, std::function<void()> onSuccess, st
 
 void ApiClient::stopClaw(const QString &id, std::function<void()> onSuccess, std::function<void(QString)> onError) {
     send("POST", "/claws/" + id + "/stop", {}, [onSuccess](const QByteArray &) { onSuccess(); }, onError);
-}
-
-void ApiClient::fetchSubscription(std::function<void(UserSubscription)> onSuccess,
-                                  std::function<void(QString)> onError) {
-    send("GET", "/subscriptions/status?app=agentaura", {},
-         [onSuccess](const QByteArray &raw) {
-             const QJsonObject data = QJsonDocument::fromJson(raw).object()["data"].toObject();
-             UserSubscription sub;
-             const QString tier = data["tier"].toString();
-             const QString productId = data["productId"].toString();
-             // The server usually collapses annual to the same "pro" tier (the product id is what
-             // distinguishes the two for display), but legacy rows can still carry a literal
-             // "pro_annual" — the tier column is free text and status echoes stored rows back.
-             if (tier == "pro_annual")
-                 sub.tier = SubscriptionTier::ProAnnual;
-             else if (tier == "pro")
-                 sub.tier = productId.contains("annual") ? SubscriptionTier::ProAnnual
-                                                         : SubscriptionTier::Pro;
-             sub.productId = productId;
-             sub.expiresAt = data["updatedAt"].toString();
-             sub.isActive = data["active"].toBool();
-             onSuccess(sub);
-         },
-         onError);
 }
 
 void ApiClient::fetchPlans(const QString &provider, std::function<void(QList<PlanInfo>)> onSuccess,

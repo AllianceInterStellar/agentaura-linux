@@ -204,7 +204,7 @@ void ClawsScreen::populateClaws(const QList<Claw> &claws) {
 
 void ClawsScreen::updatePolling(const QList<Claw> &claws) {
     // Every transitional status, not just provisioning: stopping/restarting/deleting/migrating and
-    // an unpaid checkout all change server-side with nothing to tell us about it. Keyed off
+    // a pending record all change server-side with nothing to tell us about it. Keyed off
     // isConfiguring() alone, a Stop left the card frozen until the user hit Refresh.
     bool settling = false;
     for (const auto &claw : claws)

@@ -1,4 +1,5 @@
 #include "screens/DeployScreen.h"
+#include "services/AgentLimit.h"
 #include "services/ApiClient.h"
 #include "theme/AppColors.h"
 #include <QVBoxLayout>
@@ -6,6 +7,8 @@
 #include <QLabel>
 #include <QScrollArea>
 #include <QMessageBox>
+#include <QDesktopServices>
+#include <QUrl>
 
 /// Where each provider's agent reads its key from. Mirrors AIProvider.envVarName on the other
 /// clients — the server writes the key into this variable on the instance.
@@ -58,7 +61,7 @@ void DeployScreen::setupUi() {
             this, &DeployScreen::onProviderChanged);
     form->addWidget(m_providerCombo);
 
-    form->addWidget(sectionLabel("Plan"));
+    form->addWidget(sectionLabel("Server Size"));
     m_planCombo = new QComboBox(this);
     m_planCombo->setStyleSheet(comboStyle());
     m_planCombo->setFixedHeight(40);
@@ -137,7 +140,7 @@ void DeployScreen::setupUi() {
     methodRow->addStretch();
     form->addLayout(methodRow);
 
-    // Without this the plan and region pickers just sit there empty when their fetch fails.
+    // Without this the size and region pickers just sit there empty when their fetch fails.
     m_loadError = new QLabel(this);
     m_loadError->setWordWrap(true);
     m_loadError->setVisible(false);
@@ -185,12 +188,12 @@ void DeployScreen::onProviderChanged(int index) {
             if (generation != m_fetchGeneration) return;
             m_plans = plans;
             for (const auto &p : plans)
-                m_planCombo->addItem(QString("%1 — %2 vCPU / %3GB RAM ($%4/mo)")
-                    .arg(p.name).arg(p.cpu).arg(p.memory).arg(p.price, 0, 'f', 2), p.id);
+                m_planCombo->addItem(QString("%1 — %2 vCPU / %3GB RAM")
+                    .arg(p.name).arg(p.cpu).arg(p.memory), p.id);
         },
         [this, generation](QString err) {
             if (generation != m_fetchGeneration) return;
-            showLoadError("plans", err);
+            showLoadError("server sizes", err);
         }
     );
 
@@ -213,7 +216,7 @@ void DeployScreen::onDeploy() {
     if (name.isEmpty()) { QMessageBox::warning(this, "Error", "Please enter an instance name."); return; }
     auto planId = m_planCombo->currentData().toString();
     auto regionId = m_regionCombo->currentData().toString();
-    if (planId.isEmpty()) { QMessageBox::warning(this, "Error", "Please select a plan."); return; }
+    if (planId.isEmpty()) { QMessageBox::warning(this, "Error", "Please select a server size."); return; }
 
     const auto appType = m_agentCombo->currentData().toString();
     ApiClient::AiModelConfig aiConfig;
@@ -244,8 +247,24 @@ void DeployScreen::onDeploy() {
             m_deployBtn->setEnabled(true);
             m_deployBtn->setText("🚀 Deploy Now");
             QMessageBox::critical(this, "Deploy Failed", err);
+        },
+        [this]() {
+            m_deployBtn->setEnabled(true);
+            m_deployBtn->setText("🚀 Deploy Now");
+            showAgentLimit();
         }
     );
+}
+
+void DeployScreen::showAgentLimit() {
+    // The browser first, so the site is already opening while the user reads why.
+    const bool opened = QDesktopServices::openUrl(QUrl(AgentLimit::continueUrl()));
+    QString text = AgentLimit::message();
+    if (!opened) text += "\n\nOpen " + AgentLimit::continueUrl() + " in your browser.";
+    QMessageBox box(QMessageBox::Information, "AgentAura", text, QMessageBox::Ok, this);
+    // Selectable, so the address can be copied when no browser could be started.
+    box.setTextInteractionFlags(Qt::TextSelectableByMouse);
+    box.exec();
 }
 
 bool DeployScreen::agentNeedsApiKey() const {

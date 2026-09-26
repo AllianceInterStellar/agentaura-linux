@@ -35,9 +35,9 @@ private:
     /// A refresh that failed while cards are still on screen: say so without a modal, because
     /// polling would otherwise put a dialog in the user's face every few seconds.
     void showRefreshError(const QString &msg);
-    /// A claw in a transitional state (provisioning, stopping, restarting, deleting, migrating,
-    /// awaiting payment) changes server-side with nothing to tell us about it, so poll while any
-    /// of them is mid-flight and stop once they all settle.
+    /// A claw in a transitional state (pending, provisioning, stopping, restarting, deleting,
+    /// migrating) changes server-side with nothing to tell us about it, so poll while any of them
+    /// is mid-flight and stop once they all settle.
     void updatePolling(const QList<Claw> &claws);
     ClawCard *makeCard(const Claw &claw);
     /// Report a failed Start/Stop/Delete. These used to be swallowed, so a rejected action was

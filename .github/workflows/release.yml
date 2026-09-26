@@ -49,6 +49,7 @@ jobs:
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel
           file build/agentaura
+          ctest --test-dir build --output-on-failure
           QT_QPA_PLATFORM=offscreen ./build/agentaura --self-test
 
       - name: Stage

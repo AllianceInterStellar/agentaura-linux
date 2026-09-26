@@ -7,8 +7,9 @@
 
 /// Mirrors the server's claw status vocabulary (ClawHostAPI packages/shared/src/clawStatus.ts):
 /// initializing, starting, running, stopping, off, stopped, deleting, migrating, rebuilding,
-/// unreachable, unknown, creating, configuring, restarting, awaiting_payment. Statuses the server
-/// really emits used to land in Unknown, which also kept the poll below from ever starting.
+/// unreachable, unknown, creating, configuring, restarting, error, and a pending-record status
+/// (see Pending). Statuses the server really emits used to land in Unknown, which also kept the
+/// poll below from ever starting.
 enum class ClawStatus {
     Running,
     Configuring,      // creating / configuring / initializing / starting — the provisioning path
@@ -16,7 +17,7 @@ enum class ClawStatus {
     Stopping,
     Updating,         // migrating / rebuilding
     Deleting,
-    AwaitingPayment,
+    Pending,          // a record the server lists before it has started creating the server
     Stopped,          // stopped / off
     Unreachable,
     Error,
@@ -31,7 +32,7 @@ inline QString clawStatusName(ClawStatus s) {
         case ClawStatus::Stopping: return "Stopping";
         case ClawStatus::Updating: return "Updating";
         case ClawStatus::Deleting: return "Deleting";
-        case ClawStatus::AwaitingPayment: return "Awaiting Payment";
+        case ClawStatus::Pending: return "Pending";
         case ClawStatus::Stopped: return "Stopped";
         case ClawStatus::Unreachable: return "Unreachable";
         case ClawStatus::Error: return "Error";
@@ -46,7 +47,7 @@ inline QColor clawStatusColor(ClawStatus s) {
         case ClawStatus::Restarting:
         case ClawStatus::Stopping:
         case ClawStatus::Deleting:
-        case ClawStatus::AwaitingPayment: return AppColors::warning;
+        case ClawStatus::Pending: return AppColors::warning;
         case ClawStatus::Updating: return AppColors::info;
         case ClawStatus::Stopped: return AppColors::textMuted;
         case ClawStatus::Unreachable:
@@ -55,8 +56,8 @@ inline QColor clawStatusColor(ClawStatus s) {
     }
 }
 
-/// True while the server is still doing something to the instance. Awaiting Payment is left out:
-/// the wait is on the user, not on the server, so an animated dot would be a lie.
+/// True while the server is still doing something to the instance. Pending is left out: nothing
+/// has been started on it yet, so an animated dot would be a lie.
 inline bool clawStatusShouldPulse(ClawStatus s) {
     switch (s) {
         case ClawStatus::Running:
@@ -70,8 +71,8 @@ inline bool clawStatusShouldPulse(ClawStatus s) {
 }
 
 /// "Is this claw in flight?" — every status that changes on its own, so the list keeps polling
-/// until it settles. Awaiting Payment counts: the checkout resolves elsewhere and the record
-/// flips to `creating` (or is dropped) with nothing to tell us about it.
+/// until it settles. Pending counts: the server turns the record into `creating`, or drops it,
+/// with nothing to tell us about it.
 inline bool clawStatusIsTransitional(ClawStatus s) {
     switch (s) {
         case ClawStatus::Configuring:
@@ -79,7 +80,7 @@ inline bool clawStatusIsTransitional(ClawStatus s) {
         case ClawStatus::Stopping:
         case ClawStatus::Updating:
         case ClawStatus::Deleting:
-        case ClawStatus::AwaitingPayment: return true;
+        case ClawStatus::Pending: return true;
         default: return false;
     }
 }
@@ -93,7 +94,8 @@ inline ClawStatus clawStatusFromString(const QString &s) {
     if (lower == "stopping") return ClawStatus::Stopping;
     if (lower == "migrating" || lower == "rebuilding") return ClawStatus::Updating;
     if (lower == "deleting") return ClawStatus::Deleting;
-    if (lower == "awaiting_payment") return ClawStatus::AwaitingPayment;
+    // The server's name for a record it has not started creating yet.
+    if (lower == "awaiting_payment") return ClawStatus::Pending;
     if (lower == "stopped" || lower == "off") return ClawStatus::Stopped;
     if (lower == "unreachable") return ClawStatus::Unreachable;
     if (lower == "error" || lower == "failed") return ClawStatus::Error;
@@ -136,7 +138,7 @@ struct Claw {
     QString statusLabel() const { return clawStatusLabel(status(), statusRaw); }
     bool isActive() const { return status() == ClawStatus::Running; }
     bool isConfiguring() const { return status() == ClawStatus::Configuring; }
-    /// Still settling server-side — start/stop/restart/delete/checkout all land here.
+    /// Still settling server-side — start/stop/restart/delete and pending records all land here.
     bool isTransitioning() const { return clawStatusIsTransitional(status()); }
     QString specs() const { return QString("%1 vCPUs • %2GB RAM • %3GB SSD").arg(cpu).arg(memory).arg(storage); }
     QString displayPlan() const { return planId.toUpper(); }
