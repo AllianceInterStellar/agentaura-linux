@@ -149,7 +149,7 @@ void ChatService::sendAuth() {
     };
     QJsonObject params{
         {"minProtocol", 3},
-        {"maxProtocol", 3},
+        {"maxProtocol", 4},
         {"client", client},
         {"role", "operator"},
         {"scopes", QJsonArray{"operator.admin", "operator.read", "operator.write"}},
@@ -163,7 +163,9 @@ int ChatService::sendRequest(const QString &method, const QJsonObject &params) {
     const int id = ++m_reqCounter;
     const QJsonObject frame{
         {"type", "req"},
-        {"id", id},
+        // A string: the gateway's request schema requires one and refuses the whole connection
+        // over a numeric id ("invalid request frame") before it even reads the connect params.
+        {"id", QString::number(id)},
         {"method", method},
         {"params", params},
     };
@@ -256,7 +258,8 @@ void ChatService::handleChatPayload(const QJsonObject &payload) {
 
 void ChatService::handleResponse(const QJsonObject &frame) {
     const bool ok = frame.value("ok").toBool();
-    const int id = frame.value("id").toInt();
+    // Echoed as the string we sent; read as a number too, in case a gateway echoes one.
+    const int id = frame.value("id").toVariant().toString().toInt();
 
     if (m_state == State::Authenticating) {
         const QJsonObject payload = frame.value("payload").toObject();
