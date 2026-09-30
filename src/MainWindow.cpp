@@ -38,9 +38,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
                         " border: none; padding: 0 8px 16px 8px;");
     sideLayout->addWidget(logo);
 
-    auto *clawsBtn = makeNavButton("🖥", "Agents");
-    auto *configBtn = makeNavButton("⚙", "Settings");
-    auto *accountBtn = makeNavButton("👤", "Account");
+    auto *clawsBtn = makeNavButton("🖥", tr("Agents"));
+    auto *configBtn = makeNavButton("⚙", tr("Settings"));
+    auto *accountBtn = makeNavButton("👤", tr("Account"));
 
     m_navButtons = {clawsBtn, configBtn, accountBtn};
 
@@ -83,7 +83,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     // expired" on every screen. QPointer because AuthState is a singleton that outlives the
     // window and the callback arrives from a network reply.
     AuthState::instance().setOnSessionExpired([self = QPointer<MainWindow>(this)]() {
-        if (self) self->promptSignIn("Your session ended — please sign in again.");
+        if (self) self->promptSignIn(tr("Your session ended — please sign in again."));
     });
     connect(m_deployScreen, &DeployScreen::goBack, this, &MainWindow::showClawsScreen);
     connect(m_deployScreen, &DeployScreen::deployStarted, this, [this]() {

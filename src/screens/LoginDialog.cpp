@@ -12,7 +12,7 @@
 #include <QVBoxLayout>
 
 LoginDialog::LoginDialog(QWidget *parent, const QString &notice) : QDialog(parent) {
-    setWindowTitle("Sign in to AgentAura");
+    setWindowTitle(tr("Sign in to AgentAura"));
     setModal(true);
     setMinimumWidth(380);
     setStyleSheet("QDialog { background-color: #0A0A0B; }");
@@ -21,7 +21,7 @@ LoginDialog::LoginDialog(QWidget *parent, const QString &notice) : QDialog(paren
     root->setContentsMargins(24, 24, 24, 24);
     root->setSpacing(14);
 
-    auto *title = new QLabel("Sign in", this);
+    auto *title = new QLabel(tr("Sign in"), this);
     title->setStyleSheet("font-size: 20px; font-weight: bold; color: #FFFFFF; background: transparent;");
     root->addWidget(title);
 
@@ -35,7 +35,7 @@ LoginDialog::LoginDialog(QWidget *parent, const QString &notice) : QDialog(paren
         root->addWidget(noticeLabel);
     }
 
-    auto *subtitle = new QLabel("We'll email you a one-time code — no password needed.", this);
+    auto *subtitle = new QLabel(tr("We'll email you a one-time code — no password needed."), this);
     subtitle->setWordWrap(true);
     subtitle->setStyleSheet("font-size: 12px; color: #8E8E93; background: transparent;");
     root->addWidget(subtitle);
@@ -55,7 +55,7 @@ LoginDialog::LoginDialog(QWidget *parent, const QString &notice) : QDialog(paren
     m_emailEdit->setPlaceholderText("you@example.com");
     m_emailEdit->setStyleSheet(fieldStyle);
     emailLayout->addWidget(m_emailEdit);
-    m_sendBtn = new QPushButton("Send code", emailPage);
+    m_sendBtn = new QPushButton(tr("Send code"), emailPage);
     m_sendBtn->setStyleSheet(primaryStyle);
     m_sendBtn->setCursor(Qt::PointingHandCursor);
     emailLayout->addWidget(m_sendBtn);
@@ -71,11 +71,11 @@ LoginDialog::LoginDialog(QWidget *parent, const QString &notice) : QDialog(paren
     m_sentToLabel->setStyleSheet("font-size: 12px; color: #8E8E93; background: transparent;");
     codeLayout->addWidget(m_sentToLabel);
     m_codeEdit = new QLineEdit(codePage);
-    m_codeEdit->setPlaceholderText("6-digit code");
+    m_codeEdit->setPlaceholderText(tr("6-digit code"));
     m_codeEdit->setMaxLength(6);
     m_codeEdit->setStyleSheet(fieldStyle);
     codeLayout->addWidget(m_codeEdit);
-    m_verifyBtn = new QPushButton("Verify", codePage);
+    m_verifyBtn = new QPushButton(tr("Verify"), codePage);
     m_verifyBtn->setStyleSheet(primaryStyle);
     m_verifyBtn->setCursor(Qt::PointingHandCursor);
     codeLayout->addWidget(m_verifyBtn);
@@ -102,11 +102,11 @@ void LoginDialog::setBusy(bool busy) {
     m_emailEdit->setEnabled(!busy);
     m_codeEdit->setEnabled(!busy);
     if (busy) {
-        m_sendBtn->setText("Sending…");
-        m_verifyBtn->setText("Verifying…");
+        m_sendBtn->setText(tr("Sending…"));
+        m_verifyBtn->setText(tr("Verifying…"));
     } else {
-        m_sendBtn->setText("Send code");
-        m_verifyBtn->setText("Verify");
+        m_sendBtn->setText(tr("Send code"));
+        m_verifyBtn->setText(tr("Verify"));
     }
 }
 
@@ -119,7 +119,7 @@ void LoginDialog::sendCode() {
     if (m_busy) return;
     const QString email = m_emailEdit->text().trimmed();
     if (!email.contains('@')) {
-        showError("Enter a valid email address.");
+        showError(tr("Enter a valid email address."));
         return;
     }
     showError({});
@@ -130,7 +130,7 @@ void LoginDialog::sendCode() {
         email,
         [this]() {
             setBusy(false);
-            m_sentToLabel->setText(QString("We sent a code to %1.").arg(m_email));
+            m_sentToLabel->setText(tr("We sent a code to %1.").arg(m_email));
             m_stack->setCurrentIndex(1);
             m_codeEdit->setFocus();
         },
@@ -144,7 +144,7 @@ void LoginDialog::verifyCode() {
     if (m_busy) return;
     const QString code = m_codeEdit->text().trimmed();
     if (code.isEmpty()) {
-        showError("Enter the code from your email.");
+        showError(tr("Enter the code from your email."));
         return;
     }
     showError({});

@@ -28,7 +28,7 @@ private:
     void setupUi();
     void onProviderChanged(int index);
     void onDeploy();
-    void showLoadError(const QString &what, const QString &err);
+    void showLoadError(const QString &text);
     /// The server refused a second agent: open allianceinterstellar.com and say why.
     void showAgentLimit();
 

@@ -45,7 +45,7 @@ private:
     ClawCard *makeCard(const Claw &claw);
     /// Report a failed Start/Stop/Delete. These used to be swallowed, so a rejected action was
     /// indistinguishable from one that worked.
-    void reportActionFailure(const QString &action, const QString &err);
+    void reportActionFailure(const QString &title, const QString &err);
 
     QVBoxLayout *m_listLayout = nullptr;
     QScrollArea *m_scrollArea = nullptr;

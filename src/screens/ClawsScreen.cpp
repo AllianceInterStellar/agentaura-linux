@@ -24,12 +24,12 @@ ClawsScreen::ClawsScreen(QWidget *parent) : QWidget(parent) {
 
     auto *header = new QHBoxLayout();
     header->setContentsMargins(24, 20, 24, 16);
-    auto *title = new QLabel("My Agents", this);
+    auto *title = new QLabel(tr("My Agents"), this);
     title->setStyleSheet("font-size: 22px; font-weight: bold; color: white; background: transparent; border: none;");
     header->addWidget(title);
     header->addStretch();
 
-    m_refreshBtn = new QPushButton("⟳ Refresh", this);
+    m_refreshBtn = new QPushButton(tr("⟳ Refresh"), this);
     m_refreshBtn->setFixedHeight(36);
     m_refreshBtn->setCursor(Qt::PointingHandCursor);
     m_refreshBtn->setStyleSheet(
@@ -41,7 +41,7 @@ ClawsScreen::ClawsScreen(QWidget *parent) : QWidget(parent) {
     header->addWidget(m_refreshBtn);
     header->addSpacing(8);
 
-    auto *deployBtn = new QPushButton("+ Deploy", this);
+    auto *deployBtn = new QPushButton(tr("+ Deploy"), this);
     deployBtn->setFixedHeight(36);
     deployBtn->setStyleSheet(AppColors::buttonStyle());
     connect(deployBtn, &QPushButton::clicked, this, &ClawsScreen::deployRequested);
@@ -119,15 +119,15 @@ void ClawsScreen::runPendingReload() {
 void ClawsScreen::setBusy(bool busy) {
     m_loading = busy;
     m_refreshBtn->setEnabled(!busy);
-    m_refreshBtn->setText(busy ? "⟳ Refreshing…" : "⟳ Refresh");
+    m_refreshBtn->setText(busy ? tr("⟳ Refreshing…") : tr("⟳ Refresh"));
 }
 
-void ClawsScreen::reportActionFailure(const QString &action, const QString &err) {
-    QMessageBox::warning(this, action + " Failed", err);
+void ClawsScreen::reportActionFailure(const QString &title, const QString &err) {
+    QMessageBox::warning(this, title, err);
 }
 
 void ClawsScreen::showRefreshError(const QString &msg) {
-    m_refreshError->setText("Couldn't refresh — showing the last known state. " + msg);
+    m_refreshError->setText(tr("Couldn't refresh — showing the last known state. %1").arg(msg));
     m_refreshError->setVisible(true);
 }
 
@@ -142,7 +142,7 @@ ClawCard *ClawsScreen::makeCard(const Claw &claw) {
             [this, guard]() { if (guard) guard->setActionBusy(false); loadClaws(false); },
             [this, guard](QString err) {
                 if (guard) guard->setActionBusy(false);
-                reportActionFailure("Start", err);
+                reportActionFailure(tr("Start Failed"), err);
             });
     });
     connect(card, &ClawCard::stopRequested, this, [this, guard](const QString &id) {
@@ -150,7 +150,7 @@ ClawCard *ClawsScreen::makeCard(const Claw &claw) {
             [this, guard]() { if (guard) guard->setActionBusy(false); loadClaws(false); },
             [this, guard](QString err) {
                 if (guard) guard->setActionBusy(false);
-                reportActionFailure("Stop", err);
+                reportActionFailure(tr("Stop Failed"), err);
             });
     });
     connect(card, &ClawCard::deleteRequested, this, [this, guard](const QString &id) {
@@ -158,7 +158,7 @@ ClawCard *ClawsScreen::makeCard(const Claw &claw) {
             [this, guard]() { if (guard) guard->setActionBusy(false); loadClaws(false); },
             [this, guard](QString err) {
                 if (guard) guard->setActionBusy(false);
-                reportActionFailure("Delete", err);
+                reportActionFailure(tr("Delete Failed"), err);
             });
     });
     connect(card, &ClawCard::chatRequested, this, [this](const Claw &c) {
@@ -246,17 +246,17 @@ void ClawsScreen::showEmpty() {
     icon->setAlignment(Qt::AlignCenter);
     vbox->addWidget(icon);
 
-    auto *msg = new QLabel("No Agents Yet", empty);
+    auto *msg = new QLabel(tr("No Agents Yet"), empty);
     msg->setStyleSheet("font-size: 18px; font-weight: bold; color: white; background: transparent; border: none;");
     msg->setAlignment(Qt::AlignCenter);
     vbox->addWidget(msg);
 
-    auto *sub = new QLabel("Deploy your first agent to get started", empty);
+    auto *sub = new QLabel(tr("Deploy your first agent to get started"), empty);
     sub->setStyleSheet("font-size: 13px; color: #8E8E93; background: transparent; border: none;");
     sub->setAlignment(Qt::AlignCenter);
     vbox->addWidget(sub);
 
-    auto *btn = new QPushButton("Deploy Now", empty);
+    auto *btn = new QPushButton(tr("Deploy Now"), empty);
     btn->setFixedSize(160, 40);
     btn->setStyleSheet(AppColors::buttonStyle());
     connect(btn, &QPushButton::clicked, this, &ClawsScreen::deployRequested);
@@ -269,7 +269,7 @@ void ClawsScreen::showEmpty() {
 
 void ClawsScreen::showLoading() {
     clearList();
-    auto *label = new QLabel("Loading...", m_contentWidget);
+    auto *label = new QLabel(tr("Loading..."), m_contentWidget);
     label->setStyleSheet("font-size: 14px; color: #8E8E93; background: transparent; border: none;");
     label->setAlignment(Qt::AlignCenter);
     m_listLayout->addWidget(label);
@@ -288,13 +288,13 @@ void ClawsScreen::showError(const QString &msg) {
     vbox->setContentsMargins(0, 0, 0, 0);
     vbox->setSpacing(12);
 
-    auto *label = new QLabel("Error: " + msg, box);
+    auto *label = new QLabel(tr("Error: %1").arg(msg), box);
     label->setWordWrap(true);
     label->setStyleSheet("font-size: 14px; color: #EF5350; background: transparent; border: none;");
     label->setAlignment(Qt::AlignCenter);
     vbox->addWidget(label);
 
-    auto *retry = new QPushButton("Retry", box);
+    auto *retry = new QPushButton(tr("Retry"), box);
     retry->setFixedSize(100, 36);
     retry->setStyleSheet(AppColors::buttonStyle());
     connect(retry, &QPushButton::clicked, this, [this]() { loadClaws(); });

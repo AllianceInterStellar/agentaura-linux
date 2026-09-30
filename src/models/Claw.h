@@ -1,6 +1,7 @@
 #pragma once
 #include <QString>
 #include <QColor>
+#include <QCoreApplication>
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QRegularExpression>
@@ -27,17 +28,17 @@ enum class ClawStatus {
 
 inline QString clawStatusName(ClawStatus s) {
     switch (s) {
-        case ClawStatus::Running: return "Running";
-        case ClawStatus::Configuring: return "Configuring";
-        case ClawStatus::Restarting: return "Restarting";
-        case ClawStatus::Stopping: return "Stopping";
-        case ClawStatus::Updating: return "Updating";
-        case ClawStatus::Deleting: return "Deleting";
-        case ClawStatus::Pending: return "Pending";
-        case ClawStatus::Stopped: return "Stopped";
-        case ClawStatus::Unreachable: return "Unreachable";
-        case ClawStatus::Error: return "Error";
-        default: return "Unknown";
+        case ClawStatus::Running: return QCoreApplication::translate("ClawStatus", "Running");
+        case ClawStatus::Configuring: return QCoreApplication::translate("ClawStatus", "Configuring");
+        case ClawStatus::Restarting: return QCoreApplication::translate("ClawStatus", "Restarting");
+        case ClawStatus::Stopping: return QCoreApplication::translate("ClawStatus", "Stopping");
+        case ClawStatus::Updating: return QCoreApplication::translate("ClawStatus", "Updating");
+        case ClawStatus::Deleting: return QCoreApplication::translate("ClawStatus", "Deleting");
+        case ClawStatus::Pending: return QCoreApplication::translate("ClawStatus", "Pending");
+        case ClawStatus::Stopped: return QCoreApplication::translate("ClawStatus", "Stopped");
+        case ClawStatus::Unreachable: return QCoreApplication::translate("ClawStatus", "Unreachable");
+        case ClawStatus::Error: return QCoreApplication::translate("ClawStatus", "Error");
+        default: return QCoreApplication::translate("ClawStatus", "Unknown");
     }
 }
 

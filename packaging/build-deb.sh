@@ -88,6 +88,9 @@ DEPENDS="$(printf '%s\n' "${DEPLIST[@]}" | paste -sd, - | sed 's/,/, /g')"
 #  - libssl3 is dlopen'ed by Qt's TLS backend. Without it the app starts fine and then
 #    every HTTPS/WSS request fails — which, for a client that only talks HTTPS, is all of them.
 RUNTIME_DEPENDS="qt6-qpa-plugins, libssl3 | libssl3t64"
+# Recommended, not required: qt6-wayland for a native Wayland window, qt6-translations-l10n for
+# Qt's own strings (message-box buttons) in the user's language. The app's own translations are
+# built into the binary.
 
 cat > "$STAGE/DEBIAN/control" <<CONTROL
 Package: agentaura
@@ -96,7 +99,7 @@ Section: net
 Priority: optional
 Architecture: ${ARCH}
 Depends: ${DEPENDS}, ${RUNTIME_DEPENDS}
-Recommends: qt6-wayland
+Recommends: qt6-wayland, qt6-translations-l10n
 Maintainer: AllianceInterStellar <support@allianceinterstellar.com>
 Homepage: https://allianceinterstellar.com/en/agentaura
 Description: AgentAura desktop client

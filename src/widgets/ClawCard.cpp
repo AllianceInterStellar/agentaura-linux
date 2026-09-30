@@ -63,7 +63,7 @@ void ClawCard::setupUi() {
     m_urlLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     urlRow->addWidget(m_urlLabel, 1);
 
-    auto *copyBtn = new QPushButton("Copy", this);
+    auto *copyBtn = new QPushButton(tr("Copy"), this);
     copyBtn->setFixedSize(50, 26);
     copyBtn->setStyleSheet(
         "QPushButton { background: transparent; color: #8E8E93; border: 1px solid #2A2A2E;"
@@ -84,7 +84,7 @@ void ClawCard::setupUi() {
     auto *actionRow = new QHBoxLayout();
     actionRow->setSpacing(8);
 
-    m_startBtn = new QPushButton("▶ Start", this);
+    m_startBtn = new QPushButton(tr("▶ Start"), this);
     m_startBtn->setFixedHeight(32);
     m_startBtn->setStyleSheet(
         "QPushButton { background-color: rgba(76,175,80,0.1); color: #4CAF50; border: none;"
@@ -97,7 +97,7 @@ void ClawCard::setupUi() {
     });
     actionRow->addWidget(m_startBtn);
 
-    m_stopBtn = new QPushButton("■ Stop", this);
+    m_stopBtn = new QPushButton(tr("■ Stop"), this);
     m_stopBtn->setFixedHeight(32);
     m_stopBtn->setStyleSheet(
         "QPushButton { background-color: rgba(255,152,0,0.1); color: #FF9800; border: none;"
@@ -110,7 +110,7 @@ void ClawCard::setupUi() {
     });
     actionRow->addWidget(m_stopBtn);
 
-    m_chatBtn = new QPushButton("💬 Chat", this);
+    m_chatBtn = new QPushButton(tr("💬 Chat"), this);
     m_chatBtn->setFixedHeight(32);
     m_chatBtn->setStyleSheet(
         "QPushButton { background-color: rgba(33,150,243,0.1); color: #2196F3; border: none;"
@@ -131,8 +131,8 @@ void ClawCard::setupUi() {
         " border-radius: 8px; font-size: 14px; }"
         "QPushButton:hover { background-color: rgba(239,83,80,0.2); }");
     connect(m_deleteBtn, &QPushButton::clicked, this, [this]() {
-        auto reply = QMessageBox::question(this, "Delete Agent",
-            QString("Delete \"%1\"? This action cannot be undone.").arg(m_claw.name),
+        auto reply = QMessageBox::question(this, tr("Delete Agent"),
+            tr("Delete \"%1\"? This action cannot be undone.").arg(m_claw.name),
             QMessageBox::Yes | QMessageBox::No);
         if (reply != QMessageBox::Yes) return;
         setActionBusy(true);
@@ -156,7 +156,7 @@ void ClawCard::refresh() {
     m_specsLabel->setText(m_claw.specs());
 
     auto url = m_claw.gatewayUrl();
-    m_urlLabel->setText(url.isEmpty() ? "No URL available" : url);
+    m_urlLabel->setText(url.isEmpty() ? tr("No URL available") : url);
 
     bool running = m_claw.isActive();
     m_startBtn->setVisible(!running);

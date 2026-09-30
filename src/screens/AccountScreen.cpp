@@ -17,7 +17,7 @@ AccountScreen::AccountScreen(QWidget *parent) : QWidget(parent) {
 
     auto *header = new QHBoxLayout();
     header->setContentsMargins(24, 20, 24, 16);
-    auto *title = new QLabel("Account", this);
+    auto *title = new QLabel(tr("Account"), this);
     title->setStyleSheet("font-size: 22px; font-weight: bold; color: white; background: transparent; border: none;");
     header->addWidget(title);
     header->addStretch();
@@ -79,9 +79,9 @@ void AccountScreen::buildContent() {
 
     struct MenuItem { QString icon; QString text; QString url; };
     QList<MenuItem> items = {
-        {"❓", "Help & Support", "https://allianceinterstellar.com"},
-        {"🔒", "Privacy Policy", "https://allianceinterstellar.com/legal/privacy"},
-        {"📄", "Terms of Service", "https://allianceinterstellar.com/legal/terms"},
+        {"❓", tr("Help & Support"), "https://allianceinterstellar.com"},
+        {"🔒", tr("Privacy Policy"), "https://allianceinterstellar.com/legal/privacy"},
+        {"📄", tr("Terms of Service"), "https://allianceinterstellar.com/legal/terms"},
         {"💬", "Discord", "https://discord.gg/PkqfnYSmZB"},
     };
 
@@ -99,7 +99,7 @@ void AccountScreen::buildContent() {
         vbox->addWidget(row);
     }
 
-    auto *signOutBtn = new QPushButton("🚪  Sign Out", content);
+    auto *signOutBtn = new QPushButton(tr("🚪  Sign Out"), content);
     signOutBtn->setFixedHeight(44);
     signOutBtn->setStyleSheet(
         "QPushButton { background-color: rgba(239,83,80,0.1); color: #EF5350; border: 1px solid rgba(239,83,80,0.3);"

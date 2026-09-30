@@ -22,13 +22,13 @@ ConfigScreen::ConfigScreen(QWidget *parent) : QWidget(parent) {
 
     auto *header = new QHBoxLayout();
     header->setContentsMargins(24, 20, 24, 16);
-    auto *title = new QLabel("Provider Settings", this);
+    auto *title = new QLabel(tr("Provider Settings"), this);
     title->setStyleSheet("font-size: 22px; font-weight: bold; color: white; background: transparent; border: none;");
     header->addWidget(title);
     header->addStretch();
     root->addLayout(header);
 
-    auto *desc = new QLabel("Configure API tokens for your cloud providers", this);
+    auto *desc = new QLabel(tr("Configure API tokens for your cloud providers"), this);
     desc->setContentsMargins(24, 0, 24, 12);
     desc->setStyleSheet("font-size: 13px; color: #8E8E93; background: transparent; border: none;");
     root->addWidget(desc);
@@ -92,7 +92,7 @@ void ConfigScreen::setConnected(const QString &id, bool connected) {
 }
 
 void ConfigScreen::showLoadError(const QString &message) {
-    m_loadStatus->setText("Couldn't load your saved tokens: " + message);
+    m_loadStatus->setText(tr("Couldn't load your saved tokens: %1").arg(message));
     m_loadStatus->setVisible(true);
 }
 
@@ -117,7 +117,7 @@ void ConfigScreen::addProviderCard(QLayout *layout, const QString &id, const QSt
 
     auto *inputRow = new QHBoxLayout();
     auto *tokenEdit = new QLineEdit(card);
-    tokenEdit->setPlaceholderText("Enter API token...");
+    tokenEdit->setPlaceholderText(tr("Enter API token..."));
     tokenEdit->setEchoMode(QLineEdit::Password);
     tokenEdit->setStyleSheet(AppColors::inputStyle());
     tokenEdit->setFixedHeight(36);
@@ -137,7 +137,7 @@ void ConfigScreen::addProviderCard(QLayout *layout, const QString &id, const QSt
 
     auto *btnRow = new QHBoxLayout();
     btnRow->setSpacing(8);
-    auto *syncBtn = new QPushButton("Sync", card);
+    auto *syncBtn = new QPushButton(tr("Sync"), card);
     syncBtn->setFixedHeight(32);
     syncBtn->setStyleSheet(AppColors::buttonStyle());
     connect(syncBtn, &QPushButton::clicked, this, [this, id, tokenEdit]() {
@@ -145,12 +145,12 @@ void ConfigScreen::addProviderCard(QLayout *layout, const QString &id, const QSt
         if (token.isEmpty()) return;
         ApiClient::instance().syncProviderConfig(id, token,
             [this, id]() { setConnected(id, true); },
-            [this](QString err) { QMessageBox::warning(this, "Sync Failed", err); }
+            [this](QString err) { QMessageBox::warning(this, tr("Sync Failed"), err); }
         );
     });
     btnRow->addWidget(syncBtn);
 
-    auto *delBtn = new QPushButton("Remove", card);
+    auto *delBtn = new QPushButton(tr("Remove"), card);
     delBtn->setFixedHeight(32);
     delBtn->setStyleSheet(
         "QPushButton { background-color: rgba(239,83,80,0.1); color: #EF5350; border: none;"
@@ -162,7 +162,7 @@ void ConfigScreen::addProviderCard(QLayout *layout, const QString &id, const QSt
                 setConnected(id, false);
                 tokenEdit->clear();
             },
-            [this](QString err) { QMessageBox::warning(this, "Error", err); }
+            [this](QString err) { QMessageBox::warning(this, tr("Error"), err); }
         );
     });
     btnRow->addWidget(delBtn);

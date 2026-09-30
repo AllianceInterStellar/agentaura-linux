@@ -1,4 +1,5 @@
 #pragma once
+#include <QCoreApplication>
 #include <QString>
 
 /// This client runs one agent per account. The server is what enforces that — the client never
@@ -15,8 +16,8 @@ inline QString continueUrl() {
 
 /// What the user is told in place of the server's refusal.
 inline QString message() {
-    return QStringLiteral(
-        "This version runs one agent. To run more, continue on allianceinterstellar.com.");
+    return QCoreApplication::translate(
+        "AgentLimit", "This version runs one agent. To run more, continue on allianceinterstellar.com.");
 }
 
 /// True only for the server's one-agent refusal. The status alone is not enough: the message

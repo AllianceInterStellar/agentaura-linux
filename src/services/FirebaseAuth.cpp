@@ -84,7 +84,7 @@ void FirebaseAuth::signInWithCustomToken(const QString &customToken,
         session.expiresAtMs = expiryFromSeconds(obj.value("expiresIn").toString());
 
         if (!session.isValid()) {
-            onError("Firebase returned an incomplete session");
+            onError(tr("Firebase returned an incomplete session"));
             return;
         }
         onSuccess(session);

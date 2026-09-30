@@ -91,6 +91,24 @@ qt_add_resources(AgentAura "app_icon"
 )
 
 target_link_libraries(AgentAura PRIVATE agentaura_core Qt6::Widgets Qt6::Network)
+
+# ── Translations ────────────────────────────────────────────────────────────────────
+# The interface follows the desktop language (LANG / LANGUAGE); English is the source text.
+# The .qm files are compiled from translations/*.ts and embedded under :/i18n. To pick up new
+# or changed strings after editing the code:
+#   cmake --build build --target update_translations
+# then translate the entries marked unfinished (Qt Linguist, or by hand) and rebuild.
+find_package(Qt6 QUIET COMPONENTS LinguistTools)
+if(Qt6LinguistTools_FOUND)
+    qt_add_translations(AgentAura
+        TS_FILES translations/agentaura_zh_CN.ts
+        RESOURCE_PREFIX "/i18n"
+        SOURCES ${SOURCES} src/models/Claw.h src/services/ChatService.cpp
+        LUPDATE_OPTIONS -no-obsolete -locations none)
+else()
+    message(WARNING "Qt6 LinguistTools not found: building without translations (English only). "
+                    "Install qt6-tools-dev and qt6-l10n-tools to include them.")
+endif()
 # ── Service endpoints ───────────────────────────────────────────────────────────────
 # The defaults are AgentAura's own public service, the same values every official client
 # ships with. A fork that runs its own backend overrides them at configure time:

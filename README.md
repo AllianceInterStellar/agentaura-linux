@@ -60,7 +60,8 @@ agentaura --self-test
 Ubuntu 22.04 or newer:
 
 ```sh
-sudo apt install build-essential cmake ninja-build qt6-base-dev libgl1-mesa-dev libsecret-1-dev
+sudo apt install build-essential cmake ninja-build qt6-base-dev libgl1-mesa-dev libsecret-1-dev \
+                 qt6-tools-dev qt6-l10n-tools
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ./build/agentaura
@@ -70,6 +71,12 @@ ctest --test-dir build --output-on-failure   # unit tests
 `libsecret-1-dev` lets the app keep your session in the desktop keyring (GNOME Keyring,
 KWallet, KeePassXC). Without it — or on a desktop with no keyring running — the session is
 kept in `~/.config/AgentAura/AgentAura.conf` instead.
+
+The interface follows the desktop language; it ships in English and Simplified Chinese. Run
+with `LANGUAGE=zh_CN` (or `LANGUAGE=en`) to choose one explicitly. `qt6-tools-dev` and
+`qt6-l10n-tools` compile the translations; without them the build is English only. After
+changing user-visible text, `cmake --build build --target update_translations` refreshes
+`translations/*.ts`.
 
 The code also builds on macOS and Windows with Qt 6.2 or newer; the release packages here
 are Linux only.

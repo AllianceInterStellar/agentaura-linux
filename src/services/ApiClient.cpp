@@ -78,7 +78,7 @@ void ApiClient::sendWithStatus(const QString &method, const QString &path, const
             // long-running window keeps working instead of failing every call from then on.
             m_tokenRefresher([this, method, path, body, onOk, onErr, raw, status](bool refreshed) {
                 if (!refreshed) {
-                    onErr(status, envelopeError(raw, "Session expired — please sign in again."));
+                    onErr(status, envelopeError(raw, tr("Session expired — please sign in again.")));
                     return;
                 }
                 sendWithStatus(method, path, body, onOk, onErr, /*allowRetry=*/false);
@@ -108,7 +108,7 @@ void ApiClient::verifyEmailOtp(const QString &email, const QString &code,
              const auto obj = QJsonDocument::fromJson(raw).object();
              const QString customToken = obj.value("data").toObject().value("customToken").toString();
              if (customToken.isEmpty()) {
-                 onError(envelopeError(raw, "No token returned"));
+                 onError(envelopeError(raw, tr("No token returned")));
                  return;
              }
              onSuccess(customToken);

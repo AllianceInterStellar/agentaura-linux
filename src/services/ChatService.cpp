@@ -17,7 +17,7 @@ ChatService::ChatService(QObject *parent) : QObject(parent) {
     m_connectTimeout.setSingleShot(true);
     m_connectTimeout.setInterval(15000);
     connect(&m_connectTimeout, &QTimer::timeout, this, [this]() {
-        if (m_state != State::Connected) connectionLost(QStringLiteral("Gateway connection timed out"));
+        if (m_state != State::Connected) connectionLost(tr("Gateway connection timed out"));
     });
 
     // Idle watchdog, NOT a total-turn deadline: it is restarted on every delta (see below), so a
@@ -26,7 +26,7 @@ ChatService::ChatService(QObject *parent) : QObject(parent) {
     m_turnTimeout.setSingleShot(true);
     m_turnTimeout.setInterval(130000);
     connect(&m_turnTimeout, &QTimer::timeout, this, [this]() {
-        failTurn(QStringLiteral("The agent didn't reply — the request timed out"));
+        failTurn(tr("The agent didn't reply — the request timed out"));
     });
 
     m_reconnectTimer.setSingleShot(true);
@@ -42,7 +42,7 @@ void ChatService::configure(const QString &gatewayUrl, const QString &token) {
 
 void ChatService::connectToGateway() {
     if (m_gatewayUrl.isEmpty()) {
-        emit connectionError(QStringLiteral("No gateway URL for this instance"), false);
+        emit connectionError(tr("No gateway URL for this instance"), false);
         return;
     }
     m_autoReconnect = true;
@@ -94,7 +94,7 @@ void ChatService::onSocketConnected() {
 void ChatService::onSocketClosed() {
     // A clean close mid-turn carries no chat error frame, so nothing else would ever end the
     // turn and the composer would stay disabled for the life of the window.
-    connectionLost(QStringLiteral("Connection lost"));
+    connectionLost(tr("Connection lost"));
 }
 
 void ChatService::onSocketError(const QString &message) {
@@ -250,7 +250,7 @@ void ChatService::handleChatPayload(const QJsonObject &payload) {
         emit messageCompleted(m_lastContent);
     } else if (state == "error") {
         const QString msg = payload.value("errorMessage").toString();
-        failTurn(msg.isEmpty() ? QStringLiteral("Unknown error") : msg);
+        failTurn(msg.isEmpty() ? tr("Unknown error") : msg);
     }
 }
 
@@ -274,7 +274,7 @@ void ChatService::handleResponse(const QJsonObject &frame) {
         if (!ok) {
             // The same token would be refused again, so this is the one loss not retried.
             m_autoReconnect = false;
-            connectionLost(QStringLiteral(
+            connectionLost(tr(
                 "The gateway rejected the token. Refresh the agent list and open the chat again."));
             return;
         }
@@ -320,7 +320,7 @@ void ChatService::handleResponse(const QJsonObject &frame) {
         // A refused chat.send streams nothing back, so no chat event will ever close this turn.
         if (!ok) {
             const QString msg = frame.value("error").toObject().value("message").toString();
-            failTurn(msg.isEmpty() ? QStringLiteral("The gateway rejected the message") : msg);
+            failTurn(msg.isEmpty() ? tr("The gateway rejected the message") : msg);
         }
     }
 }

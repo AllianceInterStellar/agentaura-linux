@@ -25,12 +25,12 @@ void DeployScreen::setupUi() {
 
     auto *headerRow = new QHBoxLayout();
     headerRow->setContentsMargins(24, 20, 24, 16);
-    auto *backBtn = new QPushButton("← Back", this);
+    auto *backBtn = new QPushButton(tr("← Back"), this);
     backBtn->setStyleSheet("QPushButton { background: transparent; color: #EF5350; border: none; font-size: 13px; }"
                            "QPushButton:hover { color: #E53935; }");
     connect(backBtn, &QPushButton::clicked, this, &DeployScreen::goBack);
     headerRow->addWidget(backBtn);
-    auto *title = new QLabel("Deploy an Agent", this);
+    auto *title = new QLabel(tr("Deploy an Agent"), this);
     title->setStyleSheet("font-size: 22px; font-weight: bold; color: white; background: transparent; border: none;");
     headerRow->addWidget(title, 1, Qt::AlignCenter);
     headerRow->addSpacing(60);
@@ -44,14 +44,14 @@ void DeployScreen::setupUi() {
     form->setContentsMargins(24, 0, 24, 24);
     form->setSpacing(16);
 
-    form->addWidget(sectionLabel("Agent Name"));
+    form->addWidget(sectionLabel(tr("Agent Name")));
     m_nameEdit = new QLineEdit(this);
     m_nameEdit->setPlaceholderText("my-agent");
     m_nameEdit->setStyleSheet(AppColors::inputStyle());
     m_nameEdit->setFixedHeight(40);
     form->addWidget(m_nameEdit);
 
-    form->addWidget(sectionLabel("Cloud Provider"));
+    form->addWidget(sectionLabel(tr("Cloud Provider")));
     m_providerCombo = new QComboBox(this);
     m_providerCombo->setStyleSheet(comboStyle());
     m_providerCombo->setFixedHeight(40);
@@ -61,19 +61,19 @@ void DeployScreen::setupUi() {
             this, &DeployScreen::onProviderChanged);
     form->addWidget(m_providerCombo);
 
-    form->addWidget(sectionLabel("Server Size"));
+    form->addWidget(sectionLabel(tr("Server Size")));
     m_planCombo = new QComboBox(this);
     m_planCombo->setStyleSheet(comboStyle());
     m_planCombo->setFixedHeight(40);
     form->addWidget(m_planCombo);
 
-    form->addWidget(sectionLabel("Region"));
+    form->addWidget(sectionLabel(tr("Region")));
     m_regionCombo = new QComboBox(this);
     m_regionCombo->setStyleSheet(comboStyle());
     m_regionCombo->setFixedHeight(40);
     form->addWidget(m_regionCombo);
 
-    form->addWidget(sectionLabel("Agent"));
+    form->addWidget(sectionLabel(tr("Agent")));
     m_agentCombo = new QComboBox(this);
     m_agentCombo->setStyleSheet(comboStyle());
     m_agentCombo->setFixedHeight(40);
@@ -84,12 +84,12 @@ void DeployScreen::setupUi() {
     m_agentCombo->addItem("GitHub Copilot", "copilot");
     m_agentCombo->addItem("Gemini CLI", "gemini");
     m_agentCombo->addItem("Kiro", "kiro");
-    m_agentCombo->addItem("OpenClaw (bring your own API key)", "openclaw");
+    m_agentCombo->addItem(tr("OpenClaw (bring your own API key)"), "openclaw");
     connect(m_agentCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &DeployScreen::onAgentChanged);
     form->addWidget(m_agentCombo);
 
-    m_aiProviderLabel = sectionLabel("AI Provider");
+    m_aiProviderLabel = sectionLabel(tr("AI Provider"));
     form->addWidget(m_aiProviderLabel);
     m_aiProviderCombo = new QComboBox(this);
     m_aiProviderCombo->setStyleSheet(comboStyle());
@@ -98,10 +98,10 @@ void DeployScreen::setupUi() {
     m_aiProviderCombo->addItem("Claude (Anthropic)", "claude");
     m_aiProviderCombo->addItem("GPT (OpenAI)", "openai");
     m_aiProviderCombo->addItem("Gemini (Google)", "gemini");
-    m_aiProviderCombo->addItem("Other (xAI & more)", "other");
+    m_aiProviderCombo->addItem(tr("Other (xAI & more)"), "other");
     form->addWidget(m_aiProviderCombo);
 
-    m_apiKeyLabel = sectionLabel("AI API Key");
+    m_apiKeyLabel = sectionLabel(tr("AI API Key"));
     form->addWidget(m_apiKeyLabel);
     m_apiKeyEdit = new QLineEdit(this);
     m_apiKeyEdit->setPlaceholderText("sk-...");
@@ -111,7 +111,7 @@ void DeployScreen::setupUi() {
     form->addWidget(m_apiKeyEdit);
     onAgentChanged();
 
-    form->addWidget(sectionLabel("Deploy Method"));
+    form->addWidget(sectionLabel(tr("Deploy Method")));
     auto *methodRow = new QHBoxLayout();
     methodRow->setSpacing(8);
     m_npmBtn = new QPushButton("NPM", this);
@@ -148,7 +148,7 @@ void DeployScreen::setupUi() {
     form->addWidget(m_loadError);
 
     form->addSpacing(12);
-    m_deployBtn = new QPushButton("🚀 Deploy Now", this);
+    m_deployBtn = new QPushButton(tr("🚀 Deploy Now"), this);
     m_deployBtn->setFixedHeight(44);
     m_deployBtn->setStyleSheet(AppColors::buttonStyle());
     connect(m_deployBtn, &QPushButton::clicked, this, &DeployScreen::onDeploy);
@@ -172,8 +172,8 @@ void DeployScreen::resetForm() {
     m_apiKeyEdit->clear();
 }
 
-void DeployScreen::showLoadError(const QString &what, const QString &err) {
-    m_loadError->setText(QString("Couldn't load %1: %2").arg(what, err));
+void DeployScreen::showLoadError(const QString &text) {
+    m_loadError->setText(text);
     m_loadError->setVisible(true);
 }
 
@@ -196,12 +196,12 @@ void DeployScreen::onProviderChanged(int index) {
             m_plans = plans;
             m_plansLoaded = true;
             for (const auto &p : plans)
-                m_planCombo->addItem(QString("%1 — %2 vCPU / %3GB RAM")
+                m_planCombo->addItem(tr("%1 — %2 vCPU / %3GB RAM")
                     .arg(p.name).arg(p.cpu).arg(p.memory), p.id);
         },
         [this, generation](QString err) {
             if (generation != m_fetchGeneration) return;
-            showLoadError("server sizes", err);
+            showLoadError(tr("Couldn't load server sizes: %1").arg(err));
         }
     );
 
@@ -215,14 +215,14 @@ void DeployScreen::onProviderChanged(int index) {
         },
         [this, generation](QString err) {
             if (generation != m_fetchGeneration) return;
-            showLoadError("regions", err);
+            showLoadError(tr("Couldn't load regions: %1").arg(err));
         }
     );
 }
 
 void DeployScreen::onDeploy() {
     auto name = m_nameEdit->text().trimmed();
-    if (name.isEmpty()) { QMessageBox::warning(this, "Error", "Please enter a name for the agent."); return; }
+    if (name.isEmpty()) { QMessageBox::warning(this, tr("Error"), tr("Please enter a name for the agent.")); return; }
     // Still loading, or the fetch failed: say that, rather than send a deployment without the
     // size or region and let the server refuse it for a missing field.
     if (!m_plansLoaded || !m_regionsLoaded) {
@@ -230,18 +230,18 @@ void DeployScreen::onDeploy() {
         // nothing in a combo box — so ask again from here.
         const bool failed = m_loadError->isVisible();
         if (failed) reload();
-        QMessageBox::warning(this, "Error",
-            failed ? "Server sizes and regions for this provider couldn't be loaded. Trying "
-                     "again — deploy once they appear."
-                   : "Server sizes and regions for this provider are still loading.");
+        QMessageBox::warning(this, tr("Error"),
+            failed ? tr("Server sizes and regions for this provider couldn't be loaded. Trying "
+                        "again — deploy once they appear.")
+                   : tr("Server sizes and regions for this provider are still loading."));
         return;
     }
     auto planId = m_planCombo->currentData().toString();
     auto regionId = m_regionCombo->currentData().toString();
-    if (planId.isEmpty()) { QMessageBox::warning(this, "Error", "Please select a server size."); return; }
+    if (planId.isEmpty()) { QMessageBox::warning(this, tr("Error"), tr("Please select a server size.")); return; }
     // A provider that answers with no regions at all takes none; one that lists regions needs one.
     if (regionId.isEmpty() && m_regionCombo->count() > 0) {
-        QMessageBox::warning(this, "Error", "Please select a region.");
+        QMessageBox::warning(this, tr("Error"), tr("Please select a region."));
         return;
     }
 
@@ -249,9 +249,9 @@ void DeployScreen::onDeploy() {
     ApiClient::AiModelConfig aiConfig;
     if (agentNeedsApiKey()) {
         if (m_apiKeyEdit->text().trimmed().isEmpty()) {
-            QMessageBox::warning(this, "Error",
-                "OpenClaw needs an AI API key. Enter one, or pick an agent that signs in with its "
-                "own account.");
+            QMessageBox::warning(this, tr("Error"),
+                tr("OpenClaw needs an AI API key. Enter one, or pick an agent that signs in with "
+                   "its own account."));
             return;
         }
         aiConfig.provider = m_aiProviderCombo->currentData().toString();
@@ -260,25 +260,25 @@ void DeployScreen::onDeploy() {
     }
 
     m_deployBtn->setEnabled(false);
-    m_deployBtn->setText("Deploying...");
+    m_deployBtn->setText(tr("Deploying..."));
 
     ApiClient::instance().createClaw(name, m_selectedProvider, planId, regionId,
         deployMethodValue(m_deployMethod), appType, aiConfig,
         [this](Claw) {
             m_deployBtn->setEnabled(true);
-            m_deployBtn->setText("🚀 Deploy Now");
+            m_deployBtn->setText(tr("🚀 Deploy Now"));
             resetForm();
             emit deployStarted();
             emit goBack();
         },
         [this](QString err) {
             m_deployBtn->setEnabled(true);
-            m_deployBtn->setText("🚀 Deploy Now");
-            QMessageBox::critical(this, "Deploy Failed", err);
+            m_deployBtn->setText(tr("🚀 Deploy Now"));
+            QMessageBox::critical(this, tr("Deploy Failed"), err);
         },
         [this]() {
             m_deployBtn->setEnabled(true);
-            m_deployBtn->setText("🚀 Deploy Now");
+            m_deployBtn->setText(tr("🚀 Deploy Now"));
             showAgentLimit();
         }
     );
@@ -288,7 +288,7 @@ void DeployScreen::showAgentLimit() {
     // The browser first, so the site is already opening while the user reads why.
     const bool opened = QDesktopServices::openUrl(QUrl(AgentLimit::continueUrl()));
     QString text = AgentLimit::message();
-    if (!opened) text += "\n\nOpen " + AgentLimit::continueUrl() + " in your browser.";
+    if (!opened) text += "\n\n" + tr("Open %1 in your browser.").arg(AgentLimit::continueUrl());
     QMessageBox box(QMessageBox::Information, "AgentAura", text, QMessageBox::Ok, this);
     // Selectable, so the address can be copied when no browser could be started.
     box.setTextInteractionFlags(Qt::TextSelectableByMouse);

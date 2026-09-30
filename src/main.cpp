@@ -1,6 +1,9 @@
 #include <QApplication>
 #include <QCoreApplication>
 #include <QIcon>
+#include <QLibraryInfo>
+#include <QLocale>
+#include <QTranslator>
 #include <QSslSocket>
 #include <QTextStream>
 #include "MainWindow.h"
@@ -67,6 +70,15 @@ int main(int argc, char *argv[]) {
     // Wayland compositors pick the taskbar icon and grouping from the desktop file.
     QGuiApplication::setDesktopFileName("io.allianceinterstellar.AgentAura");
     app.setStyleSheet(AppColors::globalStyleSheet());
+
+    // The desktop's language. Ours are embedded; Qt's own (the Yes/No/Cancel of a message box)
+    // come from the system's Qt translations when installed. A language we have no translation
+    // for simply stays English.
+    QTranslator qtTranslator, appTranslator;
+    if (qtTranslator.load(QLocale(), "qtbase", "_", QLibraryInfo::path(QLibraryInfo::TranslationsPath)))
+        app.installTranslator(&qtTranslator);
+    if (appTranslator.load(QLocale(), "agentaura", "_", ":/i18n"))
+        app.installTranslator(&appTranslator);
 
     MainWindow window;
 
