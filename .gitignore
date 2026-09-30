@@ -4,3 +4,4 @@ dist/
 pkgroot/
 *.user
 .DS_Store
+.flatpak-builder/

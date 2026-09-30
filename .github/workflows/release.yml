@@ -87,8 +87,28 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  flatpak:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.8
+      options: --privileged
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag matches the source version
+        run: |
+          VERSION="$(sed -n 's/^project(AgentAura VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          [ "v$VERSION" = "$TAG" ] || { echo "::error::tag $TAG does not match v$VERSION"; exit 1; }
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: agentaura-${{ env.VERSION }}-x86_64.flatpak
+          manifest-path: packaging/flatpak/io.allianceinterstellar.AgentAura.yml
+          cache-key: flatpak-release-${{ github.sha }}
+
   publish:
-    needs: build
+    needs: [build, flatpak]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -101,7 +121,7 @@ jobs:
       - name: Collect
         run: |
           mkdir -p dist
-          find artifacts -type f \( -name '*.deb' -o -name '*.tar.gz' \) -exec cp {} dist/ \;
+          find artifacts -type f \( -name '*.deb' -o -name '*.tar.gz' -o -name '*.flatpak' \) -exec cp {} dist/ \;
           cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS
 
       - name: Publish release
@@ -119,6 +139,10 @@ jobs:
           **Other distributions:** the `.tar.gz` holds the same binary without dependency
           metadata. It needs Qt 6.2 or newer (Widgets, Network) and OpenSSL 3. Run
           `./agentaura --self-test` to check that TLS works on your system.
+
+          **Flatpak (x86-64):** `flatpak install --user ./agentaura-*-x86_64.flatpak`, then
+          `flatpak run io.allianceinterstellar.AgentAura`. The KDE runtime it needs comes from
+          Flathub, so add Flathub first if you have not.
 
           `SHA256SUMS` lists the checksums of every file in this release.
           NOTES

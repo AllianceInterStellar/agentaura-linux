@@ -93,3 +93,22 @@ jobs:
           bash packaging/build-deb.sh "$PWD/pkgroot" dist
       - name: Install and run on clean images
         run: bash scripts/package-test.sh dist/*.deb ubuntu:22.04 ubuntu:24.04
+
+  # The Flatpak is built in the KDE runtime's own image, not against the runner's Qt, so it is
+  # the one build that proves the app works with a current Qt as well as with 22.04's 6.2.
+  flatpak:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.8
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate metadata
+        run: |
+          desktop-file-validate packaging/io.allianceinterstellar.AgentAura.desktop
+          appstreamcli validate --no-net packaging/io.allianceinterstellar.AgentAura.metainfo.xml
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: agentaura.flatpak
+          manifest-path: packaging/flatpak/io.allianceinterstellar.AgentAura.yml
+          cache-key: flatpak-builder-${{ github.sha }}

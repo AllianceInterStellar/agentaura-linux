@@ -1,0 +1,44 @@
+# Flatpak build of the AgentAura desktop client.
+#
+#   flatpak install flathub org.kde.Sdk//6.8 org.kde.Platform//6.8
+#   flatpak-builder --user --install --force-clean build-flatpak \
+#       packaging/flatpak/io.allianceinterstellar.AgentAura.yml
+#   flatpak run io.allianceinterstellar.AgentAura
+#
+# The KDE runtime brings Qt (with its OpenSSL TLS backend and translations) and libsecret, so the
+# app is the only module. 6.8 follows Qt's 6.8 LTS; move it forward when that runtime is retired.
+id: io.allianceinterstellar.AgentAura
+runtime: org.kde.Platform
+runtime-version: '6.8'
+sdk: org.kde.Sdk
+command: agentaura
+
+finish-args:
+  # Everything the app does is HTTPS/WSS to the service and to the user's own agents.
+  - --share=network
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # No --talk-name=org.freedesktop.secrets: inside the sandbox libsecret keeps the session through
+  # the Secret portal. Where the desktop has no such portal the app falls back to its own settings
+  # file, which in a Flatpak lives in the app's private ~/.var/app directory.
+
+modules:
+  - name: agentaura
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      # The tests run in the regular CI jobs; the Flatpak build only packages.
+      - -DAGENTAURA_BUILD_TESTS=OFF
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - .git
+          - .flatpak-builder
+          - build
+          - build-rel
+          - build-flatpak
+          - dist
+          - pkgroot

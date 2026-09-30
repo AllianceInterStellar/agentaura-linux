@@ -32,6 +32,16 @@ tar xzf agentaura-*-linux-amd64.tar.gz       # or -arm64
 ./agentaura-*/agentaura
 ```
 
+**Flatpak (any distribution, x86-64)**
+
+```sh
+flatpak install --user ./agentaura-*-x86_64.flatpak
+flatpak run io.allianceinterstellar.AgentAura
+```
+
+The KDE runtime it needs is fetched from [Flathub](https://flathub.org/setup), so set that up
+first. To build the Flatpak yourself, see `packaging/flatpak/`.
+
 **Check that it can reach the service**
 
 Every request the client makes is HTTPS or WSS, and Qt loads its TLS library at runtime. A
