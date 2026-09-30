@@ -5,8 +5,8 @@
 #       packaging/flatpak/io.allianceinterstellar.AgentAura.yml
 #   flatpak run io.allianceinterstellar.AgentAura
 #
-# The KDE runtime brings Qt (with its OpenSSL TLS backend and translations) and libsecret, so the
-# app is the only module. 6.8 follows Qt's 6.8 LTS; move it forward when that runtime is retired.
+# The KDE runtime brings Qt (with its OpenSSL TLS backend and translations). libsecret's library
+# is in the runtime but its headers are not in the SDK, so it is built here, as Flathub apps do. 6.8 follows Qt's 6.8 LTS; move it forward when that runtime is retired.
 id: io.allianceinterstellar.AgentAura
 runtime: org.kde.Platform
 runtime-version: '6.8'
@@ -25,6 +25,23 @@ finish-args:
   # file, which in a Flatpak lives in the app's private ~/.var/app directory.
 
 modules:
+  - name: libsecret
+    buildsystem: meson
+    config-opts:
+      - -Dmanpage=false
+      - -Dvapi=false
+      - -Dgtk_doc=false
+      - -Dintrospection=false
+    cleanup:
+      - /bin
+      - /include
+      - /lib/pkgconfig
+      - /share
+    sources:
+      - type: git
+        url: https://gitlab.gnome.org/GNOME/libsecret.git
+        tag: 0.21.4
+
   - name: agentaura
     buildsystem: cmake-ninja
     config-opts:

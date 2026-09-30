@@ -107,7 +107,7 @@ if(Qt6LinguistTools_FOUND)
         LUPDATE_OPTIONS -no-obsolete -locations none)
 else()
     message(WARNING "Qt6 LinguistTools not found: building without translations (English only). "
-                    "Install qt6-tools-dev and qt6-l10n-tools to include them.")
+                    "Install qt6-tools-dev, qt6-tools-dev-tools and qt6-l10n-tools to include them.")
 endif()
 # ── Service endpoints ───────────────────────────────────────────────────────────────
 # The defaults are AgentAura's own public service, the same values every official client
