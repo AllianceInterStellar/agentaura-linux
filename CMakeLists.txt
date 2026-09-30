@@ -22,6 +22,8 @@ add_library(agentaura_core STATIC
     src/services/WebSocketClient.cpp
     src/services/ChatService.h
     src/services/ChatService.cpp
+    src/services/ChatFormat.h
+    src/services/ChatFormat.cpp
 )
 target_include_directories(agentaura_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(agentaura_core PUBLIC Qt6::Core Qt6::Gui Qt6::Network)
@@ -125,7 +127,7 @@ if(AGENTAURA_BUILD_TESTS)
     target_link_libraries(agent_limit_test PRIVATE Qt6::Core)
     add_test(NAME agent_limit COMMAND agent_limit_test)
 
-    foreach(name tst_websocketframe tst_websocketclient tst_chatservice tst_claw)
+    foreach(name tst_websocketframe tst_websocketclient tst_chatservice tst_chatformat tst_claw)
         add_executable(${name} tests/${name}.cpp tests/MiniWsServer.h)
         target_link_libraries(${name} PRIVATE agentaura_core Qt6::Test)
         add_test(NAME ${name} COMMAND ${name})

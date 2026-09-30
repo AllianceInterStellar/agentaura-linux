@@ -12,21 +12,12 @@ ChatService::ChatService(QObject *parent) : QObject(parent) {
     connect(&m_ws, &WebSocketClient::connected, this, &ChatService::onSocketConnected);
     connect(&m_ws, &WebSocketClient::textMessageReceived, this, &ChatService::onSocketText);
     connect(&m_ws, &WebSocketClient::disconnected, this, &ChatService::onSocketClosed);
-    connect(&m_ws, &WebSocketClient::errorOccurred, this, [this](const QString &e) {
-        setState(State::Disconnected);
-        m_turnTimeout.stop();
-        m_awaitingReply = false;
-        emit errorOccurred(e);
-    });
+    connect(&m_ws, &WebSocketClient::errorOccurred, this, &ChatService::onSocketError);
 
     m_connectTimeout.setSingleShot(true);
     m_connectTimeout.setInterval(15000);
     connect(&m_connectTimeout, &QTimer::timeout, this, [this]() {
-        if (m_state != State::Connected) {
-            m_ws.close();
-            setState(State::Disconnected);
-            emit errorOccurred("Gateway connection timed out");
-        }
+        if (m_state != State::Connected) connectionLost(QStringLiteral("Gateway connection timed out"));
     });
 
     // Idle watchdog, NOT a total-turn deadline: it is restarted on every delta (see below), so a
@@ -37,6 +28,11 @@ ChatService::ChatService(QObject *parent) : QObject(parent) {
     connect(&m_turnTimeout, &QTimer::timeout, this, [this]() {
         failTurn(QStringLiteral("The agent didn't reply — the request timed out"));
     });
+
+    m_reconnectTimer.setSingleShot(true);
+    connect(&m_reconnectTimer, &QTimer::timeout, this, [this]() {
+        if (m_autoReconnect && m_state == State::Disconnected) connectToGateway();
+    });
 }
 
 void ChatService::configure(const QString &gatewayUrl, const QString &token) {
@@ -46,11 +42,17 @@ void ChatService::configure(const QString &gatewayUrl, const QString &token) {
 
 void ChatService::connectToGateway() {
     if (m_gatewayUrl.isEmpty()) {
-        emit errorOccurred("No gateway URL for this instance");
+        emit connectionError(QStringLiteral("No gateway URL for this instance"), false);
         return;
     }
-    if (m_state == State::Connecting || m_state == State::Authenticating || m_state == State::Connected)
-        return;
+    m_autoReconnect = true;
+    m_reconnectTimer.stop();
+    if (m_state != State::Disconnected) return;
+
+    // Request ids belong to the connection they were sent on; none of them will be answered now.
+    m_sessionsListReqId = -1;
+    m_historyReqId = -1;
+    m_chatSendReqId = -1;
 
     QString wsUrl = m_gatewayUrl;
     wsUrl.replace("https://", "wss://").replace("http://", "ws://");
@@ -63,12 +65,19 @@ void ChatService::connectToGateway() {
 }
 
 void ChatService::disconnectFromGateway() {
+    m_autoReconnect = false;
+    m_reconnectTimer.stop();
     m_connectTimeout.stop();
     m_turnTimeout.stop();
     m_ws.close();
     m_awaitingReply = false;
     m_pendingMessage.clear();
     setState(State::Disconnected);
+}
+
+void ChatService::reconnectNow() {
+    m_reconnectAttempt = 0;
+    connectToGateway();
 }
 
 void ChatService::setState(State s) {
@@ -83,11 +92,41 @@ void ChatService::onSocketConnected() {
 }
 
 void ChatService::onSocketClosed() {
-    m_connectTimeout.stop();
     // A clean close mid-turn carries no chat error frame, so nothing else would ever end the
     // turn and the composer would stay disabled for the life of the window.
-    failTurn(QStringLiteral("Connection lost"));
+    connectionLost(QStringLiteral("Connection lost"));
+}
+
+void ChatService::onSocketError(const QString &message) {
+    connectionLost(message);
+}
+
+void ChatService::connectionLost(const QString &message) {
+    // The socket can report one loss twice (a protocol error, then the disconnect it causes).
+    if (m_state == State::Disconnected) return;
+    m_connectTimeout.stop();
+    m_ws.close();
+    failTurn(message);
     setState(State::Disconnected);
+
+    const bool retry = m_autoReconnect;
+    // A prompt still waiting for the connection goes out after the reconnect. With no reconnect
+    // coming it never will, so hand it back as a failed turn rather than leave it pending.
+    if (!retry && !m_pendingMessage.isEmpty()) {
+        m_pendingMessage.clear();
+        m_pendingModel.clear();
+        emit errorOccurred(message);
+    }
+    emit connectionError(message, retry);
+    if (retry) scheduleReconnect();
+}
+
+void ChatService::scheduleReconnect() {
+    if (m_reconnectDelays.isEmpty()) return;
+    const int delay = m_reconnectDelays.at(qMin(m_reconnectAttempt, int(m_reconnectDelays.size()) - 1));
+    ++m_reconnectAttempt;
+    m_reconnectTimer.start(delay);
+    emit reconnectScheduled(delay);
 }
 
 void ChatService::failTurn(const QString &message) {
@@ -217,11 +256,13 @@ void ChatService::handleChatPayload(const QJsonObject &payload) {
 
 void ChatService::handleResponse(const QJsonObject &frame) {
     const bool ok = frame.value("ok").toBool();
+    const int id = frame.value("id").toInt();
 
     if (m_state == State::Authenticating) {
         const QJsonObject payload = frame.value("payload").toObject();
         if (ok && payload.value("type").toString() == "hello-ok") {
             m_connectTimeout.stop();
+            m_reconnectAttempt = 0;
             // Ask for the session list BEFORE announcing Connected. stateChanged is emitted
             // synchronously, and a slot that sends a message right away would otherwise find
             // m_sessionsListReqId still unset, skip the queue, and talk to the default session
@@ -231,15 +272,15 @@ void ChatService::handleResponse(const QJsonObject &frame) {
             return;
         }
         if (!ok) {
-            m_connectTimeout.stop();
-            m_ws.close();
-            setState(State::Disconnected);
-            emit errorOccurred("Gateway rejected the token — try Reconnect on the instance");
+            // The same token would be refused again, so this is the one loss not retried.
+            m_autoReconnect = false;
+            connectionLost(QStringLiteral(
+                "The gateway rejected the token. Refresh the agent list and open the chat again."));
             return;
         }
     }
 
-    if (m_sessionsListReqId != -1 && frame.value("id").toInt() == m_sessionsListReqId) {
+    if (m_sessionsListReqId != -1 && id == m_sessionsListReqId) {
         m_sessionsListReqId = -1;
         if (ok) {
             const QJsonValue payload = frame.value("payload");
@@ -253,18 +294,28 @@ void ChatService::handleResponse(const QJsonObject &frame) {
                 if (key.startsWith(prefix)) { m_sessionKey = key; break; }
             }
         }
+        // The conversation so far, once per window: after a reconnect the transcript on screen
+        // is already the live one.
+        if (!m_historyDelivered) {
+            m_historyReqId = sendRequest("chat.history",
+                                         QJsonObject{{"sessionKey", m_sessionKey}, {"limit", 100}});
+        }
         // Whether or not the lookup found anything, the default key is valid — flush the queue.
-        if (!m_pendingMessage.isEmpty()) {
-            const QString msg = m_pendingMessage;
-            const QString model = m_pendingModel;
-            m_pendingMessage.clear();
-            m_pendingModel.clear();
-            sendChatMessage(msg, model);
+        flushPendingMessage();
+        return;
+    }
+
+    if (m_historyReqId != -1 && id == m_historyReqId) {
+        m_historyReqId = -1;
+        // A gateway without chat.history (or one that fails it) just means no backlog.
+        if (ok && !m_historyDelivered) {
+            m_historyDelivered = true;
+            emit historyLoaded(parseHistory(frame.value("payload")));
         }
         return;
     }
 
-    if (m_chatSendReqId != -1 && frame.value("id").toInt() == m_chatSendReqId) {
+    if (m_chatSendReqId != -1 && id == m_chatSendReqId) {
         m_chatSendReqId = -1;
         // A refused chat.send streams nothing back, so no chat event will ever close this turn.
         if (!ok) {
@@ -272,6 +323,15 @@ void ChatService::handleResponse(const QJsonObject &frame) {
             failTurn(msg.isEmpty() ? QStringLiteral("The gateway rejected the message") : msg);
         }
     }
+}
+
+void ChatService::flushPendingMessage() {
+    if (m_pendingMessage.isEmpty()) return;
+    const QString msg = m_pendingMessage;
+    const QString model = m_pendingModel;
+    m_pendingMessage.clear();
+    m_pendingModel.clear();
+    sendChatMessage(msg, model);
 }
 
 void ChatService::sendChatMessage(const QString &message, const QString &model) {
@@ -300,6 +360,22 @@ void ChatService::sendChatMessage(const QString &message, const QString &model) 
     if (!model.isEmpty()) params["model"] = model;
     m_chatSendReqId = sendRequest("chat.send", params);
     m_turnTimeout.start();
+}
+
+QList<ChatHistoryEntry> ChatService::parseHistory(const QJsonValue &payload) {
+    const QJsonArray messages = payload.isArray() ? payload.toArray()
+                                                  : payload.toObject().value("messages").toArray();
+    QList<ChatHistoryEntry> out;
+    for (const QJsonValue &v : messages) {
+        const QJsonObject m = v.toObject();
+        const QString role = m.value("role").toString();
+        // Tool calls, tool results and system notes are the agent's working, not the chat.
+        if (role != "user" && role != "assistant") continue;
+        const QString text = parseMessageContent(m);
+        if (text.trimmed().isEmpty()) continue;
+        out.append({role == "user", text});
+    }
+    return out;
 }
 
 QString ChatService::parseMessageContent(const QJsonValue &raw) {

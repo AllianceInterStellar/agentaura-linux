@@ -17,6 +17,8 @@ struct FakeGateway {
     QString acceptedToken = "tok";
     QString sessionKey = "agent:main:resumed";
     QList<QJsonObject> requests;
+    QJsonArray history;           ///< what chat.history answers with
+    bool historyFails = false;
 
     FakeGateway() {
         ws.onUpgraded = [this] {
@@ -37,11 +39,25 @@ struct FakeGateway {
                              {"payload", QJsonObject{{"sessions", QJsonArray{
                                  QJsonObject{{"key", "other:thing"}},
                                  QJsonObject{{"key", sessionKey}}}}}}});
+            } else if (method == "chat.history") {
+                if (historyFails)
+                    ws.sendJson({{"type", "res"}, {"id", id}, {"ok", false},
+                                 {"error", QJsonObject{{"message", "unknown method"}}}});
+                else
+                    ws.sendJson({{"type", "res"}, {"id", id}, {"ok", true},
+                                 {"payload", QJsonObject{{"sessionKey", sessionKey},
+                                                         {"messages", history}}}});
             } else if (method == "chat.send") {
                 ws.sendJson({{"type", "res"}, {"id", id}, {"ok", true},
                              {"payload", QJsonObject{{"runId", "run-1"}}}});
             }
         };
+    }
+
+    int count(const QString &method) const {
+        int n = 0;
+        for (const QJsonObject &r : requests) n += (r.value("method").toString() == method);
+        return n;
     }
 
     QJsonObject lastRequest(const QString &method) const {
@@ -175,12 +191,136 @@ private slots:
         FakeGateway gw;
         gw.acceptedToken = "the-right-one";
         ChatService chat;
-        QSignalSpy errors(&chat, &ChatService::errorOccurred);
+        chat.setReconnectDelays({50});
+        QSignalSpy lost(&chat, &ChatService::connectionError);
+        QSignalSpy retries(&chat, &ChatService::reconnectScheduled);
         chat.configure(httpUrl(gw.ws), "wrong");
         chat.connectToGateway();
-        QTRY_COMPARE(errors.count(), 1);
-        QVERIFY(errors.at(0).at(0).toString().contains("rejected the token"));
+        QTRY_COMPARE(lost.count(), 1);
+        QVERIFY(lost.at(0).at(0).toString().contains("rejected the token"));
+        QCOMPARE(lost.at(0).at(1).toBool(), false);   // the same token would be refused again
         QCOMPARE(chat.state(), ChatService::State::Disconnected);
+        QTest::qWait(300);
+        QCOMPARE(retries.count(), 0);
+        QCOMPARE(gw.ws.connectionCount, 1);
+    }
+
+    void reconnectsAfterADrop() {
+        FakeGateway gw;
+        ChatService chat;
+        chat.setReconnectDelays({50, 100});
+        QSignalSpy lost(&chat, &ChatService::connectionError);
+        QSignalSpy retries(&chat, &ChatService::reconnectScheduled);
+        QSignalSpy turnErrors(&chat, &ChatService::errorOccurred);
+        QVERIFY(connectTo(chat, gw));
+
+        gw.ws.dropConnection();   // no turn in flight
+        QTRY_COMPARE(lost.count(), 1);
+        QCOMPARE(lost.at(0).at(1).toBool(), true);
+        QCOMPARE(retries.count(), 1);
+        QCOMPARE(turnErrors.count(), 0);   // nothing for the transcript
+        QTRY_VERIFY(chat.isConnected());
+        QCOMPARE(gw.ws.connectionCount, 2);
+    }
+
+    void backsOffWhileTheGatewayIsDown() {
+        FakeGateway gw;
+        ChatService chat;
+        chat.setReconnectDelays({30, 60, 90});
+        QSignalSpy retries(&chat, &ChatService::reconnectScheduled);
+        QVERIFY(connectTo(chat, gw));
+
+        gw.ws.stopListening();
+        gw.ws.dropConnection();
+        QTRY_VERIFY(retries.count() >= 4);
+        QCOMPARE(retries.at(0).at(0).toInt(), 30);
+        QCOMPARE(retries.at(1).at(0).toInt(), 60);
+        QCOMPARE(retries.at(2).at(0).toInt(), 90);
+        QCOMPARE(retries.at(3).at(0).toInt(), 90);   // the last delay repeats
+
+        QVERIFY(gw.ws.listenAgain());
+        QTRY_VERIFY(chat.isConnected());
+        // Connected again: the next drop starts from the shortest delay.
+        const int before = retries.count();
+        gw.ws.dropConnection();
+        QTRY_COMPARE(retries.count(), before + 1);
+        QCOMPARE(retries.last().at(0).toInt(), 30);
+    }
+
+    void doesNotReconnectAfterDisconnecting() {
+        FakeGateway gw;
+        ChatService chat;
+        chat.setReconnectDelays({20});
+        QSignalSpy retries(&chat, &ChatService::reconnectScheduled);
+        QVERIFY(connectTo(chat, gw));
+        chat.disconnectFromGateway();
+        QTest::qWait(200);
+        QCOMPARE(retries.count(), 0);
+        QCOMPARE(gw.ws.connectionCount, 1);
+    }
+
+    void queuedMessageSurvivesAReconnect() {
+        FakeGateway gw;
+        ChatService chat;
+        chat.setReconnectDelays({50});
+        QVERIFY(connectTo(chat, gw));
+        QTRY_COMPARE(chat.sessionKey(), gw.sessionKey);
+        gw.ws.stopListening();
+        gw.ws.dropConnection();
+        QTRY_VERIFY(!chat.isConnected());
+
+        chat.sendChatMessage("while down");   // waits for the connection to come back
+        QTest::qWait(150);
+        QCOMPARE(gw.count("chat.send"), 0);
+        QVERIFY(gw.ws.listenAgain());
+        QTRY_COMPARE(gw.count("chat.send"), 1);
+        QCOMPARE(gw.lastRequest("chat.send").value("params")["message"].toString(), QString("while down"));
+    }
+
+    void loadsHistoryOnce() {
+        FakeGateway gw;
+        gw.history = QJsonArray{
+            QJsonObject{{"role", "user"}, {"content", "earlier question"}},
+            QJsonObject{{"role", "assistant"}, {"content", QJsonArray{
+                QJsonObject{{"type", "text"}, {"text", "earlier answer"}}}}},
+            QJsonObject{{"role", "toolResult"}, {"content", "ls output"}},
+            QJsonObject{{"role", "assistant"}, {"content", QJsonArray{
+                QJsonObject{{"type", "tool_use"}, {"name", "bash"}}}}},   // no text: skipped
+        };
+        ChatService chat;
+        chat.setReconnectDelays({50});
+        QSignalSpy history(&chat, &ChatService::historyLoaded);
+        QVERIFY(connectTo(chat, gw));
+        QTRY_COMPARE(history.count(), 1);
+        QCOMPARE(gw.lastRequest("chat.history").value("params")["sessionKey"].toString(), gw.sessionKey);
+
+        const auto entries = history.at(0).at(0).value<QList<ChatHistoryEntry>>();
+        QCOMPARE(entries.size(), 2);
+        QVERIFY(entries.at(0).fromUser);
+        QCOMPARE(entries.at(0).text, QString("earlier question"));
+        QVERIFY(!entries.at(1).fromUser);
+        QCOMPARE(entries.at(1).text, QString("earlier answer"));
+
+        // After a reconnect the transcript on screen is the live one: no second history.
+        gw.ws.dropConnection();
+        QTRY_COMPARE(gw.ws.connectionCount, 2);
+        QTRY_VERIFY(chat.isConnected());
+        QTRY_COMPARE(gw.count("sessions.list"), 2);
+        QTest::qWait(100);
+        QCOMPARE(gw.count("chat.history"), 1);
+        QCOMPARE(history.count(), 1);
+    }
+
+    void failedHistoryDoesNotBlockTheQueue() {
+        FakeGateway gw;
+        gw.historyFails = true;
+        ChatService chat;
+        QSignalSpy history(&chat, &ChatService::historyLoaded);
+        chat.configure(httpUrl(gw.ws), "tok");
+        chat.sendChatMessage("hello");
+        QTRY_COMPARE(gw.count("chat.send"), 1);
+        QTest::qWait(100);
+        QCOMPARE(history.count(), 0);
     }
 
     void flattensMessageContent_data() {
@@ -201,6 +341,8 @@ private slots:
         QCOMPARE(ChatService::parseMessageContent(raw), text);
     }
 };
+
+Q_DECLARE_METATYPE(QList<ChatHistoryEntry>)
 
 QTEST_GUILESS_MAIN(TstChatService)
 #include "tst_chatservice.moc"
