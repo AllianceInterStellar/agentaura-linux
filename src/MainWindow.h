@@ -2,11 +2,15 @@
 #include <QMainWindow>
 #include <QStackedWidget>
 #include <QPushButton>
+#include <QMap>
+#include <QPointer>
 
 class ClawsScreen;
 class DeployScreen;
 class AccountScreen;
 class ConfigScreen;
+class ChatScreen;
+struct Claw;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -23,6 +27,12 @@ private:
     /// `notice` explains an ending the user did not ask for; empty for a deliberate sign-out.
     void promptSignIn(const QString &notice = {});
 
+    /// Drop everything on screen that belongs to the session being ended — open chat windows,
+    /// the agent list, typed-in keys — so the next account to sign in never sees it.
+    void clearSessionUi();
+    /// One chat window per agent: a second click brings the open one forward.
+    void openChat(const Claw &claw);
+
     void switchTab(int index);
     void showDeployScreen();
     void showClawsScreen();
@@ -34,6 +44,6 @@ private:
     AccountScreen *m_accountScreen = nullptr;
     ConfigScreen *m_configScreen = nullptr;
     QList<QPushButton *> m_navButtons;
-    int m_currentTab = 0;
+    QMap<QString, QPointer<ChatScreen>> m_chats;   ///< open chat windows by claw id
     bool m_signInPromptOpen = false;
 };

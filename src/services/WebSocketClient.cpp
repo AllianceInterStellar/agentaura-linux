@@ -1,28 +1,19 @@
 #include "services/WebSocketClient.h"
+#include "services/WebSocketFrame.h"
 
-#include <QCryptographicHash>
 #include <QRandomGenerator>
 #include <QSslSocket>
 #include <QTcpSocket>
 
-namespace {
-// RFC 6455 §1.3 — the magic GUID the server appends to the client key.
-const char kWsGuid[] = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-
-enum Opcode : quint8 {
-    OpContinuation = 0x0,
-    OpText = 0x1,
-    OpBinary = 0x2,
-    OpClose = 0x8,
-    OpPing = 0x9,
-    OpPong = 0xA,
-};
-}  // namespace
+using namespace WebSocketFrame;
 
 WebSocketClient::WebSocketClient(QObject *parent) : QObject(parent) {}
 
 WebSocketClient::~WebSocketClient() {
-    if (m_socket) m_socket->abort();
+    if (m_socket) {
+        m_socket->disconnect(this);
+        m_socket->abort();
+    }
 }
 
 void WebSocketClient::open(const QUrl &url, const QString &origin) {
@@ -33,6 +24,7 @@ void WebSocketClient::open(const QUrl &url, const QString &origin) {
     m_secure = (url.scheme().compare("wss", Qt::CaseInsensitive) == 0);
     m_buffer.clear();
     m_fragment.clear();
+    m_fragmentOpcode = 0;
     m_state = Connecting;
 
     if (m_secure) {
@@ -47,7 +39,10 @@ void WebSocketClient::open(const QUrl &url, const QString &origin) {
     connect(m_socket, &QTcpSocket::readyRead, this, &WebSocketClient::onReadyRead);
     connect(m_socket, &QTcpSocket::errorOccurred, this, &WebSocketClient::onSocketError);
     connect(m_socket, &QTcpSocket::disconnected, this, [this]() {
-        const bool wasUp = (m_state == Established);
+        // Closing counts as "was up": a server-initiated close parks the state there before the
+        // TCP connection goes, and leaving it out meant a close frame never reached the owner —
+        // the chat kept claiming to be connected until its turn timed out.
+        const bool wasUp = (m_state == Established || m_state == Closing);
         m_state = Idle;
         if (wasUp) emit disconnected();
     });
@@ -65,13 +60,11 @@ void WebSocketClient::onSocketConnected() {
     QByteArray raw(16, 0);
     for (int i = 0; i < 16; ++i) raw[i] = static_cast<char>(QRandomGenerator::global()->bounded(256));
     const QByteArray key = raw.toBase64();
+    m_expectedAccept = acceptKey(key);
 
-    m_expectedAccept =
-        QCryptographicHash::hash(key + kWsGuid, QCryptographicHash::Sha1).toBase64();
-
-    QString path = m_url.path();
+    QString path = m_url.path(QUrl::FullyEncoded);
     if (path.isEmpty()) path = "/";
-    if (m_url.hasQuery()) path += "?" + m_url.query();
+    if (m_url.hasQuery()) path += "?" + m_url.query(QUrl::FullyEncoded);
 
     const quint16 port = m_url.port(m_secure ? 443 : 80);
     const bool defaultPort = (m_secure && port == 443) || (!m_secure && port == 80);
@@ -102,32 +95,36 @@ void WebSocketClient::onReadyRead() {
 
 bool WebSocketClient::readHandshake() {
     const int end = m_buffer.indexOf("\r\n\r\n");
-    if (end < 0) return false;
+    if (end < 0) {
+        // Headers that never end are not a WebSocket server either.
+        if (m_buffer.size() > 64 * 1024) fatal("WebSocket handshake response too large");
+        return false;
+    }
 
     const QByteArray header = m_buffer.left(end);
     m_buffer.remove(0, end + 4);
 
     const QList<QByteArray> lines = header.split('\n');
-    if (lines.isEmpty() || !lines.first().contains("101")) {
-        emit errorOccurred("WebSocket upgrade rejected: " + QString::fromUtf8(lines.value(0)).trimmed());
-        m_socket->abort();
-        m_state = Idle;
+    // "HTTP/1.1 101 Switching Protocols" — the status is the second token, not just any "101".
+    const QList<QByteArray> status = lines.value(0).trimmed().split(' ');
+    if (status.size() < 2 || !status.at(0).startsWith("HTTP/") || status.at(1) != "101") {
+        fatal("WebSocket upgrade rejected: " + QString::fromUtf8(lines.value(0)).trimmed());
         return false;
     }
 
     // Verify Sec-WebSocket-Accept so we don't talk framing to something that isn't a WS server.
+    // Header names are case-insensitive (RFC 7230 §3.2).
     QByteArray accept;
     for (const QByteArray &line : lines) {
-        const QByteArray l = line.trimmed();
-        if (l.startsWith("Sec-WebSocket-Accept:") || l.startsWith("sec-websocket-accept:")) {
-            accept = l.mid(l.indexOf(':') + 1).trimmed();
+        const int colon = line.indexOf(':');
+        if (colon <= 0) continue;
+        if (line.left(colon).trimmed().toLower() == "sec-websocket-accept") {
+            accept = line.mid(colon + 1).trimmed();
             break;
         }
     }
     if (accept != m_expectedAccept) {
-        emit errorOccurred("WebSocket handshake failed (bad Sec-WebSocket-Accept)");
-        m_socket->abort();
-        m_state = Idle;
+        fatal("WebSocket handshake failed (bad Sec-WebSocket-Accept)");
         return false;
     }
 
@@ -137,72 +134,54 @@ bool WebSocketClient::readHandshake() {
 }
 
 void WebSocketClient::parseFrames() {
-    forever {
-        if (m_buffer.size() < 2) return;
-
-        const quint8 b0 = static_cast<quint8>(m_buffer.at(0));
-        const quint8 b1 = static_cast<quint8>(m_buffer.at(1));
-        const bool fin = b0 & 0x80;
-        const quint8 opcode = b0 & 0x0F;
-        const bool masked = b1 & 0x80;         // servers must NOT mask, but tolerate it
-        quint64 len = b1 & 0x7F;
-
-        int offset = 2;
-        if (len == 126) {
-            if (m_buffer.size() < offset + 2) return;
-            len = (static_cast<quint8>(m_buffer.at(2)) << 8) | static_cast<quint8>(m_buffer.at(3));
-            offset += 2;
-        } else if (len == 127) {
-            if (m_buffer.size() < offset + 8) return;
-            len = 0;
-            for (int i = 0; i < 8; ++i)
-                len = (len << 8) | static_cast<quint8>(m_buffer.at(offset + i));
-            offset += 8;
+    // m_socket is checked on every pass: a slot connected to textMessageReceived may close or
+    // reopen this client, and the buffer then belongs to a connection that no longer exists.
+    while (m_socket && (m_state == Established || m_state == Closing)) {
+        Frame frame;
+        QString error;
+        const Result r = parse(m_buffer, frame, &error);
+        if (r == Result::NeedMore) return;
+        if (r == Result::Error) {
+            fatal(error);
+            return;
         }
 
-        QByteArray mask;
-        if (masked) {
-            if (m_buffer.size() < offset + 4) return;
-            mask = m_buffer.mid(offset, 4);
-            offset += 4;
-        }
-
-        if (static_cast<quint64>(m_buffer.size()) < offset + len) return;   // frame still arriving
-
-        QByteArray payload = m_buffer.mid(offset, static_cast<int>(len));
-        m_buffer.remove(0, offset + static_cast<int>(len));
-
-        if (masked) {
-            for (int i = 0; i < payload.size(); ++i)
-                payload[i] = payload[i] ^ mask[i % 4];
-        }
-
-        switch (opcode) {
+        switch (frame.opcode) {
         case OpPing:
-            writeFrame(OpPong, payload);
+            writeFrame(OpPong, frame.payload);
             break;
         case OpPong:
             break;
         case OpClose:
+            if (m_state == Established) writeFrame(OpClose, QByteArray());
             m_state = Closing;
-            writeFrame(OpClose, QByteArray());
             m_socket->disconnectFromHost();
             return;
         case OpContinuation:
-            m_fragment += payload;
-            if (fin) {
-                if (m_fragmentOpcode == OpText) emit textMessageReceived(QString::fromUtf8(m_fragment));
+            if (m_fragmentOpcode == 0) {
+                fatal("Unexpected WebSocket continuation frame");
+                return;
+            }
+            if (m_fragment.size() + frame.payload.size() > kMaxMessageBytes) {
+                fatal("WebSocket message too large");
+                return;
+            }
+            m_fragment += frame.payload;
+            if (frame.fin) {
+                const bool text = (m_fragmentOpcode == OpText);
+                const QByteArray message = m_fragment;
                 m_fragment.clear();
                 m_fragmentOpcode = 0;
+                if (text) emit textMessageReceived(QString::fromUtf8(message));
             }
             break;
         case OpText:
         case OpBinary:
-            if (fin) {
-                if (opcode == OpText) emit textMessageReceived(QString::fromUtf8(payload));
+            if (frame.fin) {
+                if (frame.opcode == OpText) emit textMessageReceived(QString::fromUtf8(frame.payload));
             } else {
-                m_fragmentOpcode = opcode;
-                m_fragment = payload;
+                m_fragmentOpcode = frame.opcode;
+                m_fragment = frame.payload;
             }
             break;
         default:
@@ -213,33 +192,7 @@ void WebSocketClient::parseFrames() {
 
 void WebSocketClient::writeFrame(quint8 opcode, const QByteArray &payload) {
     if (!m_socket || m_socket->state() != QAbstractSocket::ConnectedState) return;
-
-    QByteArray frame;
-    frame.append(static_cast<char>(0x80 | opcode));   // FIN + opcode
-
-    const int n = payload.size();
-    if (n < 126) {
-        frame.append(static_cast<char>(0x80 | n));    // MASK + length
-    } else if (n <= 0xFFFF) {
-        frame.append(static_cast<char>(0x80 | 126));
-        frame.append(static_cast<char>((n >> 8) & 0xFF));
-        frame.append(static_cast<char>(n & 0xFF));
-    } else {
-        frame.append(static_cast<char>(0x80 | 127));
-        for (int i = 7; i >= 0; --i)
-            frame.append(static_cast<char>((static_cast<quint64>(n) >> (i * 8)) & 0xFF));
-    }
-
-    // Every client frame must carry a fresh 4-byte mask.
-    char mask[4];
-    for (int i = 0; i < 4; ++i) mask[i] = static_cast<char>(QRandomGenerator::global()->bounded(256));
-    frame.append(mask, 4);
-
-    QByteArray masked = payload;
-    for (int i = 0; i < masked.size(); ++i) masked[i] = masked[i] ^ mask[i % 4];
-    frame += masked;
-
-    m_socket->write(frame);
+    m_socket->write(encode(opcode, payload, /*mask=*/true));
 }
 
 void WebSocketClient::sendText(const QString &text) {
@@ -253,6 +206,9 @@ void WebSocketClient::sendText(const QString &text) {
 void WebSocketClient::close() {
     if (m_socket) {
         if (m_state == Established) writeFrame(OpClose, QByteArray());
+        // A close we asked for is not a dropped connection: detach first so abort() does not
+        // report it as one.
+        m_socket->disconnect(this);
         m_socket->abort();
         m_socket->deleteLater();
         m_socket = nullptr;
@@ -260,10 +216,24 @@ void WebSocketClient::close() {
     m_state = Idle;
     m_buffer.clear();
     m_fragment.clear();
+    m_fragmentOpcode = 0;
 }
 
-void WebSocketClient::onSocketError(QAbstractSocket::SocketError) {
+void WebSocketClient::fatal(const QString &message) {
+    // Tear down as close() does, then report: a peer that broke the protocol gets no more reads.
+    const bool wasUp = (m_state == Established || m_state == Closing);
+    close();
+    emit errorOccurred(message);
+    if (wasUp) emit disconnected();
+}
+
+void WebSocketClient::onSocketError(QAbstractSocket::SocketError error) {
     if (!m_socket) return;
+    // The server closing the connection is how every session ends, not an error; `disconnected`
+    // reports it.
+    if (error == QAbstractSocket::RemoteHostClosedError &&
+        (m_state == Established || m_state == Closing))
+        return;
     emit errorOccurred(m_socket->errorString());
     m_state = Idle;
 }

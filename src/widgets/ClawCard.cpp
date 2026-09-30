@@ -58,7 +58,9 @@ void ClawCard::setupUi() {
     auto *urlRow = new QHBoxLayout();
     m_urlLabel = new QLabel(this);
     m_urlLabel->setStyleSheet("font-size: 11px; color: #2196F3; background: transparent; border: none;");
-    m_urlLabel->setCursor(Qt::PointingHandCursor);
+    // Selectable rather than a link: it is the gateway endpoint, not a page to open — Copy
+    // and Chat are the ways to use it.
+    m_urlLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     urlRow->addWidget(m_urlLabel, 1);
 
     auto *copyBtn = new QPushButton("Copy", this);
@@ -129,7 +131,7 @@ void ClawCard::setupUi() {
         " border-radius: 8px; font-size: 14px; }"
         "QPushButton:hover { background-color: rgba(239,83,80,0.2); }");
     connect(m_deleteBtn, &QPushButton::clicked, this, [this]() {
-        auto reply = QMessageBox::question(this, "Delete Claw",
+        auto reply = QMessageBox::question(this, "Delete Agent",
             QString("Delete \"%1\"? This action cannot be undone.").arg(m_claw.name),
             QMessageBox::Yes | QMessageBox::No);
         if (reply != QMessageBox::Yes) return;

@@ -14,12 +14,13 @@ set(SOURCES
     src/theme/AppColors.h
     src/models/Claw.h
     src/models/AppUser.h
-    src/models/ProvisionProgress.h
     src/models/ApiModels.h
     src/services/AgentLimit.h
     src/services/ApiClient.h
     src/services/ApiClient.cpp
     src/services/AuthState.h
+    src/services/WebSocketFrame.h
+    src/services/WebSocketFrame.cpp
     src/services/WebSocketClient.h
     src/services/WebSocketClient.cpp
     src/services/ChatService.h

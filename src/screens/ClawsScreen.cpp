@@ -24,7 +24,7 @@ ClawsScreen::ClawsScreen(QWidget *parent) : QWidget(parent) {
 
     auto *header = new QHBoxLayout();
     header->setContentsMargins(24, 20, 24, 16);
-    auto *title = new QLabel("My Claws", this);
+    auto *title = new QLabel("My Agents", this);
     title->setStyleSheet("font-size: 22px; font-weight: bold; color: white; background: transparent; border: none;");
     header->addWidget(title);
     header->addStretch();
@@ -102,6 +102,12 @@ void ClawsScreen::loadClaws(bool showSpinner) {
             runPendingReload();
         }
     );
+}
+
+void ClawsScreen::reset() {
+    m_pollTimer->stop();
+    m_refreshError->setVisible(false);
+    showLoading();
 }
 
 void ClawsScreen::runPendingReload() {
@@ -240,12 +246,12 @@ void ClawsScreen::showEmpty() {
     icon->setAlignment(Qt::AlignCenter);
     vbox->addWidget(icon);
 
-    auto *msg = new QLabel("No Claws Yet", empty);
+    auto *msg = new QLabel("No Agents Yet", empty);
     msg->setStyleSheet("font-size: 18px; font-weight: bold; color: white; background: transparent; border: none;");
     msg->setAlignment(Qt::AlignCenter);
     vbox->addWidget(msg);
 
-    auto *sub = new QLabel("Deploy your first OpenClaw instance to get started", empty);
+    auto *sub = new QLabel("Deploy your first agent to get started", empty);
     sub->setStyleSheet("font-size: 13px; color: #8E8E93; background: transparent; border: none;");
     sub->setAlignment(Qt::AlignCenter);
     vbox->addWidget(sub);

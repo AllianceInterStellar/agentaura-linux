@@ -38,7 +38,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
                         " border: none; padding: 0 8px 16px 8px;");
     sideLayout->addWidget(logo);
 
-    auto *clawsBtn = makeNavButton("🖥", "Claws");
+    auto *clawsBtn = makeNavButton("🖥", "Agents");
     auto *configBtn = makeNavButton("⚙", "Settings");
     auto *accountBtn = makeNavButton("👤", "Account");
 
@@ -72,11 +72,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_stack->addWidget(m_deployScreen);
 
     connect(m_clawsScreen, &ClawsScreen::deployRequested, this, &MainWindow::showDeployScreen);
-    connect(m_clawsScreen, &ClawsScreen::openChat, this, [this](const Claw &claw) {
-        auto *chat = new ChatScreen(claw, this);
-        chat->setAttribute(Qt::WA_DeleteOnClose);
-        chat->show();
-    });
+    connect(m_clawsScreen, &ClawsScreen::openChat, this, &MainWindow::openChat);
     connect(m_accountScreen, &AccountScreen::signedOut, this, [this]() {
         // Signing out invalidates every API call — re-gate behind the login dialog.
         promptSignIn();
@@ -107,6 +103,7 @@ void MainWindow::promptSignIn(const QString &notice) {
     // each waiting on the one in front of it.
     if (m_signInPromptOpen) return;
     m_signInPromptOpen = true;
+    clearSessionUi();
     LoginDialog dlg(this, notice);
     const bool signedIn = (dlg.exec() == QDialog::Accepted);
     m_signInPromptOpen = false;
@@ -118,8 +115,33 @@ void MainWindow::promptSignIn(const QString &notice) {
     onSignedIn();
 }
 
+void MainWindow::clearSessionUi() {
+    // Chat windows hold the previous account's gateway token and transcript, and are separate
+    // top-level windows — left open, they stayed usable after someone else signed in.
+    for (const QPointer<ChatScreen> &chat : std::as_const(m_chats))
+        if (chat) chat->close();
+    m_chats.clear();
+    m_clawsScreen->reset();
+    m_deployScreen->resetForm();
+    m_configScreen->clearTokens();
+    m_accountScreen->reload();
+    switchTab(0);
+}
+
+void MainWindow::openChat(const Claw &claw) {
+    if (QPointer<ChatScreen> open = m_chats.value(claw.id)) {
+        open->showNormal();
+        open->raise();
+        open->activateWindow();
+        return;
+    }
+    auto *chat = new ChatScreen(claw, this);
+    chat->setAttribute(Qt::WA_DeleteOnClose);
+    m_chats.insert(claw.id, chat);
+    chat->show();
+}
+
 void MainWindow::switchTab(int index) {
-    m_currentTab = index;
     m_stack->setCurrentIndex(index);
     for (int i = 0; i < m_navButtons.size(); ++i) {
         bool active = (i == index);

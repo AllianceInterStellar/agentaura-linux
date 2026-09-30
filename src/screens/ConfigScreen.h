@@ -14,6 +14,9 @@ public:
     /// session exists — the screen is built before sign-in, when the fetch would only 401.
     void reload();
 
+    /// Empty every token field — the previous account's secrets must not outlive its session.
+    void clearTokens();
+
 private:
     void addProviderCard(QLayout *layout, const QString &id, const QString &name);
     void setConnected(const QString &id, bool connected);

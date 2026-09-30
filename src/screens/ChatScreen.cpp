@@ -132,6 +132,8 @@ void ChatScreen::addMessage(const QString &text, bool fromUser) {
 
     auto *bubble = new QLabel(text, m_messagesWidget);
     bubble->setWordWrap(true);
+    // Never AutoText: a reply that happens to contain markup would otherwise be rendered as HTML.
+    bubble->setTextFormat(Qt::PlainText);
     bubble->setTextInteractionFlags(Qt::TextSelectableByMouse);
     bubble->setMaximumWidth(520);
     bubble->setStyleSheet(

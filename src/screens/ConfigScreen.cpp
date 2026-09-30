@@ -63,10 +63,7 @@ void ConfigScreen::reload() {
     // Empty the fields before asking: after an account switch a failed fetch only shows a banner,
     // and the previous user's provider tokens would otherwise stay in the inputs — readable with
     // the eye toggle — as if they belonged to the account now signed in.
-    for (auto it = m_tokenEdits.cbegin(); it != m_tokenEdits.cend(); ++it) {
-        it.value()->clear();
-        setConnected(it.key(), false);
-    }
+    clearTokens();
 
     ApiClient::instance().fetchProviderConfigs(
         [this](QMap<QString, QString> tokens) {
@@ -78,6 +75,15 @@ void ConfigScreen::reload() {
             }
         },
         [this](const QString &err) { showLoadError(err); });
+}
+
+void ConfigScreen::clearTokens() {
+    m_loadStatus->setVisible(false);
+    for (auto it = m_tokenEdits.cbegin(); it != m_tokenEdits.cend(); ++it) {
+        it.value()->clear();
+        it.value()->setEchoMode(QLineEdit::Password);
+        setConnected(it.key(), false);
+    }
 }
 
 void ConfigScreen::setConnected(const QString &id, bool connected) {

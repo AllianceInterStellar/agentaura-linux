@@ -16,6 +16,10 @@ public:
     /// exists — the screen is built before sign-in, when those fetches would only 401.
     void reload();
 
+    /// Clear what the user typed (instance name, AI key): after a deployment went out, and when
+    /// the session ends, so one account's key is never sitting in the form for the next.
+    void resetForm();
+
 signals:
     void deployStarted();
     void goBack();
@@ -44,7 +48,6 @@ private:
     QPushButton *m_npmBtn = nullptr;
     QPushButton *m_dockerBtn = nullptr;
     QPushButton *m_deployBtn = nullptr;
-    QWidget *m_planContainer = nullptr;
     QLabel *m_loadError = nullptr;
 
     QLabel *sectionLabel(const QString &text);
@@ -54,6 +57,10 @@ private:
     QString m_selectedProvider;
     /// Bumped on every provider switch; a plans/regions reply from an older generation is dropped.
     quint64 m_fetchGeneration = 0;
+    /// Whether this generation's plans/regions arrived. An empty picker means "still loading" or
+    /// "failed" until they have — and a deployment sent then is missing a field the server needs.
+    bool m_plansLoaded = false;
+    bool m_regionsLoaded = false;
     DeployMethod m_deployMethod = DeployMethod::Npm;
     QList<PlanInfo> m_plans;
     QList<RegionInfo> m_regions;

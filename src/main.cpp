@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QCoreApplication>
 #include <QIcon>
 #include <QSslSocket>
 #include <QTextStream>
@@ -16,7 +17,12 @@
 // HTTPS or WSS, and Qt loads its TLS backend at runtime — a missing OpenSSL or backend
 // plugin does not stop the app from starting, it just makes every request fail. The
 // release pipeline runs this on a freshly installed package; users can run it too.
-static int selfTest() {
+//
+// It runs under a QCoreApplication, not a QApplication: the question is about TLS, and a
+// QApplication needs a display — so over SSH, or on a server, the check itself used to fail
+// with "could not connect to display" before it could say anything about TLS.
+static int selfTest(int argc, char *argv[]) {
+    QCoreApplication app(argc, argv);
     QTextStream out(stdout);
     const bool tls = QSslSocket::supportsSsl();
     out << "AgentAura " << AGENTAURA_VERSION << "\n"
@@ -26,13 +32,31 @@ static int selfTest() {
     return tls ? 0 : 1;
 }
 
+static void printHelp() {
+    QTextStream(stdout)
+        << "Usage: agentaura [option]\n"
+        << "\n"
+        << "The AgentAura desktop client. Run without options to open the app.\n"
+        << "\n"
+        << "Options:\n"
+        << "  --self-test   check that Qt can make TLS connections on this machine\n"
+        << "  --version     print the version and exit\n"
+        << "  --help        print this help and exit\n";
+}
+
 int main(int argc, char *argv[]) {
+    // Answered before any QApplication exists, so none of them needs a display.
     for (int i = 1; i < argc; ++i) {
         const QByteArray arg(argv[i]);
         if (arg == "--version") {
             QTextStream(stdout) << "AgentAura " << AGENTAURA_VERSION << "\n";
             return 0;
         }
+        if (arg == "--help" || arg == "-h") {
+            printHelp();
+            return 0;
+        }
+        if (arg == "--self-test") return selfTest(argc, argv);
     }
 
     QApplication app(argc, argv);
@@ -43,8 +67,6 @@ int main(int argc, char *argv[]) {
     // Wayland compositors pick the taskbar icon and grouping from the desktop file.
     QGuiApplication::setDesktopFileName("io.allianceinterstellar.AgentAura");
     app.setStyleSheet(AppColors::globalStyleSheet());
-
-    if (app.arguments().contains("--self-test")) return selfTest();
 
     MainWindow window;
 

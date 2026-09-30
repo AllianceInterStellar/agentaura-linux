@@ -3,6 +3,7 @@
 #include <QColor>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QRegularExpression>
 #include "theme/AppColors.h"
 
 /// Mirrors the server's claw status vocabulary (ClawHostAPI packages/shared/src/clawStatus.ts):
@@ -115,7 +116,7 @@ inline QString clawStatusLabel(ClawStatus s, const QString &raw) {
 
 struct Claw {
     QString id;
-    QString name = "OpenClaw Instance";
+    QString name = "Agent";
     QString provider = "hetzner";
     QString statusRaw;
     QString planId;
@@ -183,7 +184,7 @@ struct Claw {
     static Claw fromJson(const QJsonObject &obj) {
         Claw c;
         c.id = obj["id"].toString();
-        c.name = obj["name"].toString("OpenClaw Instance");
+        c.name = obj["name"].toString("Agent");
         c.provider = obj["provider"].toString("hetzner");
         c.statusRaw = obj["status"].toString();
         c.planId = obj["planId"].toString();

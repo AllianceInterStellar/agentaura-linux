@@ -20,6 +20,9 @@ public:
     /// reloads) so the cards update in place instead of blinking through "Loading…".
     void loadClaws(bool showSpinner = true);
 
+    /// Forget the list shown for the session that just ended.
+    void reset();
+
 signals:
     void deployRequested();
     void openChat(const Claw &claw);

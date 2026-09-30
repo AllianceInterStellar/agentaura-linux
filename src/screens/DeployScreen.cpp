@@ -30,7 +30,7 @@ void DeployScreen::setupUi() {
                            "QPushButton:hover { color: #E53935; }");
     connect(backBtn, &QPushButton::clicked, this, &DeployScreen::goBack);
     headerRow->addWidget(backBtn);
-    auto *title = new QLabel("Deploy OpenClaw", this);
+    auto *title = new QLabel("Deploy an Agent", this);
     title->setStyleSheet("font-size: 22px; font-weight: bold; color: white; background: transparent; border: none;");
     headerRow->addWidget(title, 1, Qt::AlignCenter);
     headerRow->addSpacing(60);
@@ -44,9 +44,9 @@ void DeployScreen::setupUi() {
     form->setContentsMargins(24, 0, 24, 24);
     form->setSpacing(16);
 
-    form->addWidget(sectionLabel("Instance Name"));
+    form->addWidget(sectionLabel("Agent Name"));
     m_nameEdit = new QLineEdit(this);
-    m_nameEdit->setPlaceholderText("my-openclaw");
+    m_nameEdit->setPlaceholderText("my-agent");
     m_nameEdit->setStyleSheet(AppColors::inputStyle());
     m_nameEdit->setFixedHeight(40);
     form->addWidget(m_nameEdit);
@@ -167,6 +167,11 @@ void DeployScreen::reload() {
     if (m_providerCombo->count() > 0) onProviderChanged(m_providerCombo->currentIndex());
 }
 
+void DeployScreen::resetForm() {
+    m_nameEdit->clear();
+    m_apiKeyEdit->clear();
+}
+
 void DeployScreen::showLoadError(const QString &what, const QString &err) {
     m_loadError->setText(QString("Couldn't load %1: %2").arg(what, err));
     m_loadError->setVisible(true);
@@ -182,11 +187,14 @@ void DeployScreen::onProviderChanged(int index) {
     // land in the pickers that were just cleared for the new one — the user would otherwise be
     // able to deploy provider B with provider A's planId/region.
     const quint64 generation = ++m_fetchGeneration;
+    m_plansLoaded = false;
+    m_regionsLoaded = false;
 
     ApiClient::instance().fetchPlans(m_selectedProvider,
         [this, generation](QList<PlanInfo> plans) {
             if (generation != m_fetchGeneration) return;
             m_plans = plans;
+            m_plansLoaded = true;
             for (const auto &p : plans)
                 m_planCombo->addItem(QString("%1 — %2 vCPU / %3GB RAM")
                     .arg(p.name).arg(p.cpu).arg(p.memory), p.id);
@@ -201,6 +209,7 @@ void DeployScreen::onProviderChanged(int index) {
         [this, generation](QList<RegionInfo> regions) {
             if (generation != m_fetchGeneration) return;
             m_regions = regions;
+            m_regionsLoaded = true;
             for (const auto &r : regions)
                 m_regionCombo->addItem(QString("%1, %2").arg(r.city, r.country), r.id);
         },
@@ -213,10 +222,28 @@ void DeployScreen::onProviderChanged(int index) {
 
 void DeployScreen::onDeploy() {
     auto name = m_nameEdit->text().trimmed();
-    if (name.isEmpty()) { QMessageBox::warning(this, "Error", "Please enter an instance name."); return; }
+    if (name.isEmpty()) { QMessageBox::warning(this, "Error", "Please enter a name for the agent."); return; }
+    // Still loading, or the fetch failed: say that, rather than send a deployment without the
+    // size or region and let the server refuse it for a missing field.
+    if (!m_plansLoaded || !m_regionsLoaded) {
+        // A failed fetch never retries by itself, and re-picking the same provider changes
+        // nothing in a combo box — so ask again from here.
+        const bool failed = m_loadError->isVisible();
+        if (failed) reload();
+        QMessageBox::warning(this, "Error",
+            failed ? "Server sizes and regions for this provider couldn't be loaded. Trying "
+                     "again — deploy once they appear."
+                   : "Server sizes and regions for this provider are still loading.");
+        return;
+    }
     auto planId = m_planCombo->currentData().toString();
     auto regionId = m_regionCombo->currentData().toString();
     if (planId.isEmpty()) { QMessageBox::warning(this, "Error", "Please select a server size."); return; }
+    // A provider that answers with no regions at all takes none; one that lists regions needs one.
+    if (regionId.isEmpty() && m_regionCombo->count() > 0) {
+        QMessageBox::warning(this, "Error", "Please select a region.");
+        return;
+    }
 
     const auto appType = m_agentCombo->currentData().toString();
     ApiClient::AiModelConfig aiConfig;
@@ -240,6 +267,7 @@ void DeployScreen::onDeploy() {
         [this](Claw) {
             m_deployBtn->setEnabled(true);
             m_deployBtn->setText("🚀 Deploy Now");
+            resetForm();
             emit deployStarted();
             emit goBack();
         },

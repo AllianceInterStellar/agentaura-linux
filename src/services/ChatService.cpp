@@ -4,6 +4,10 @@
 #include <QJsonDocument>
 #include <QUuid>
 
+#ifndef AGENTAURA_VERSION
+#define AGENTAURA_VERSION "0.0.0-dev"
+#endif
+
 ChatService::ChatService(QObject *parent) : QObject(parent) {
     connect(&m_ws, &WebSocketClient::connected, this, &ChatService::onSocketConnected);
     connect(&m_ws, &WebSocketClient::textMessageReceived, this, &ChatService::onSocketText);
@@ -53,7 +57,8 @@ void ChatService::connectToGateway() {
 
     setState(State::Connecting);
     m_connectTimeout.start();
-    // The gateway checks Origin; it only accepts the web console's.
+    // The gateway checks Origin and only accepts the web console's. That is the service's own
+    // host name, not a brand shown to anyone, so it stays as the gateway expects it.
     m_ws.open(QUrl(wsUrl), "https://clawhost.cloud");
 }
 
@@ -97,8 +102,8 @@ void ChatService::failTurn(const QString &message) {
 void ChatService::sendAuth() {
     QJsonObject client{
         {"id", "gateway-client"},
-        {"displayName", "clawhost-chat"},
-        {"version", "1.0.0"},
+        {"displayName", "agentaura-desktop"},
+        {"version", QStringLiteral(AGENTAURA_VERSION)},
         {"platform", "desktop"},
         {"mode", "ui"},
         {"instanceId", QUuid::createUuid().toString(QUuid::WithoutBraces)},

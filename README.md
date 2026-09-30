@@ -4,8 +4,8 @@
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20community-5865F2?logo=discord&logoColor=white)](https://discord.gg/PkqfnYSmZB)
 
 The desktop client for [AgentAura](https://allianceinterstellar.com/en/agentaura): install a
-private AI agent (Claude Code or Codex) on a Linux server you control, then manage it and
-chat with it from your desktop. Written in C++ with Qt 6 Widgets.
+private AI agent (Claude Code, Codex, GitHub Copilot, Gemini CLI, Kiro or OpenClaw) on a Linux
+server you control, then manage it and chat with it from your desktop. Written in C++ with Qt 6 Widgets.
 
 ## Install
 
@@ -46,8 +46,8 @@ agentaura --self-test
 
 - **Sign in** with an email one-time code (no password), the same account as the web, iOS
   and Android apps.
-- **Deploy** an agent to a server: pick the engine (Claude Code or Codex), the provider,
-  server size and region. This version runs one agent per account; when you ask for another,
+- **Deploy** an agent to a server: pick the agent (Claude Code, Codex, GitHub Copilot, Gemini CLI,
+  Kiro, or OpenClaw with your own AI API key), the provider, server size and region. This version runs one agent per account; when you ask for another,
   it opens [allianceinterstellar.com](https://allianceinterstellar.com/pricing#agentaura-plans)
   in your browser, where you can continue.
 - **Agents** — see every agent you own, its status while it provisions, restarts or
