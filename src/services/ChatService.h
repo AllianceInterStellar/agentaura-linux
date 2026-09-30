@@ -51,6 +51,9 @@ public:
     /// Sessions another program has open: visible, but not ours to stop.
     QSet<QString> externalSessionIds() const { return m_externalSessionIds; }
 
+    /// Flattens gateway message content (string | {content|text} | content-block array) to text.
+    static QString parseMessageContent(const QJsonValue &raw);
+
 private:
     QSet<QString> m_runningSessionIds;
     int m_runningAgentCount = 0;
@@ -71,8 +74,6 @@ private:
     /// handed back to the user.
     void failTurn(const QString &message);
 
-    /// Flattens gateway message content (string | {content|text} | content-block array) to text.
-    static QString parseMessageContent(const QJsonValue &raw);
 
     WebSocketClient m_ws;
     QString m_gatewayUrl;

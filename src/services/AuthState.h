@@ -3,6 +3,7 @@
 #include "models/AppUser.h"
 #include "services/ApiClient.h"
 #include "services/FirebaseAuth.h"
+#include "services/SecretStore.h"
 
 #include <QDateTime>
 #include <QSettings>
@@ -16,8 +17,10 @@
 ///
 /// Sessions come from the backend's email one-time passcode: POST /auth/send-otp then
 /// /auth/verify-otp yields a Firebase *custom* token, which FirebaseAuth exchanges for the
-/// idToken every ClawHostAPI call is bearer-authenticated with. The refresh token is kept in
-/// QSettings so the app comes back signed in, exactly like the mobile clients.
+/// idToken every ClawHostAPI call is bearer-authenticated with. The refresh token is kept so the
+/// app comes back signed in, exactly like the mobile clients — in the desktop keyring
+/// (SecretStore), and only where there is no keyring in the settings file. The email and uid are
+/// not secrets and stay in QSettings.
 class AuthState {
 public:
     static AuthState &instance() { static AuthState s; return s; }
@@ -56,6 +59,8 @@ public:
         // makes its result land nowhere instead of quietly signing the user back in.
         ++m_sessionEpoch;
         ApiClient::instance().setAuthToken({});
+        SecretStore::remove(kRefreshTokenKey);
+        m_storedRefreshToken.clear();
         QSettings st;
         st.remove("auth");
     }
@@ -64,7 +69,7 @@ public:
     /// re-established (the refresh token is long-lived, the idToken is not).
     void restore(std::function<void(bool)> done) {
         QSettings st;
-        const QString refresh = st.value("auth/refreshToken").toString();
+        const QString refresh = loadRefreshToken();
         const QString email = st.value("auth/email").toString();
         if (refresh.isEmpty()) {
             if (done) done(false);
@@ -184,16 +189,47 @@ private:
         for (auto &waiter : waiters) waiter(ok);
     }
 
-    void persist() const {
+    static constexpr const char *kRefreshTokenKey = "refresh-token";
+
+    /// The stored refresh token: the keyring's, or — before it has been moved there, or where
+    /// there is no keyring — the settings file's. A token found in the settings file while a
+    /// keyring is available is moved into the keyring and erased from disk.
+    QString loadRefreshToken() {
         QSettings st;
-        st.setValue("auth/refreshToken", m_refreshToken);
+        const QString legacy = st.value("auth/refreshToken").toString();
+        const std::optional<QString> kept = SecretStore::lookup(kRefreshTokenKey);
+        if (kept && !kept->isEmpty()) {
+            if (!legacy.isEmpty()) st.remove("auth/refreshToken");
+            m_storedRefreshToken = *kept;
+            return *kept;
+        }
+        if (!legacy.isEmpty() && kept && SecretStore::store(kRefreshTokenKey, legacy))
+            st.remove("auth/refreshToken");
+        m_storedRefreshToken = legacy;
+        return legacy;
+    }
+
+    void persist() {
+        QSettings st;
         st.setValue("auth/email", m_user.email);
         st.setValue("auth/uid", m_user.id);
+        // Every idToken refresh lands here, about once an hour, and Firebase rarely rotates the
+        // refresh token — only write (a D-Bus round trip) when it actually changed.
+        if (m_refreshToken == m_storedRefreshToken) return;
+        if (SecretStore::store(kRefreshTokenKey, m_refreshToken)) {
+            st.remove("auth/refreshToken");
+        } else {
+            // No keyring on this desktop: keep the session across launches the way it always
+            // was, in the settings file (readable by this user only, like the rest of $HOME).
+            st.setValue("auth/refreshToken", m_refreshToken);
+        }
+        m_storedRefreshToken = m_refreshToken;
     }
 
     bool m_loggedIn = false;
     AppUser m_user;
     QString m_refreshToken;
+    QString m_storedRefreshToken;   ///< what persist() last wrote, to skip redundant writes
     qint64 m_expiresAtMs = 0;
 
     QTimer m_keepAlive;

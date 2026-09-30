@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
 
     MainWindow window;
 
-    // Restore a stored session (refresh token in QSettings) before showing anything; if
+    // Restore a stored session (refresh token in the keyring) before showing anything; if
     // there is none, or it was revoked, ask the user to sign in. Every ClawHostAPI call
     // needs the Firebase idToken, so the app is unusable while signed out.
     // With no stored token restore() answers synchronously, i.e. before app.exec() — and

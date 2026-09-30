@@ -60,11 +60,16 @@ agentaura --self-test
 Ubuntu 22.04 or newer:
 
 ```sh
-sudo apt install build-essential cmake ninja-build qt6-base-dev libgl1-mesa-dev
+sudo apt install build-essential cmake ninja-build qt6-base-dev libgl1-mesa-dev libsecret-1-dev
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ./build/agentaura
+ctest --test-dir build --output-on-failure   # unit tests
 ```
+
+`libsecret-1-dev` lets the app keep your session in the desktop keyring (GNOME Keyring,
+KWallet, KeePassXC). Without it — or on a desktop with no keyring running — the session is
+kept in `~/.config/AgentAura/AgentAura.conf` instead.
 
 The code also builds on macOS and Windows with Qt 6.2 or newer; the release packages here
 are Linux only.
